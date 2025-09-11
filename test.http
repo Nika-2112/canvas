@@ -1,0 +1,14 @@
+### Получить все страницы (GET)
+GET http://localhost:3000/api/test
+
+### Создать тестовую страницу (POST)
+POST http://localhost:3000/api/test
+
+### Регистрация пользователя
+POST http://localhost:3000/api/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "123456"
+}

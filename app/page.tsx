@@ -1,103 +1,161 @@
-import Image from "next/image";
+/**
+ * Главная страница приложения.
+ * Функционал:
+ *  - проверка авторизации;
+ *  - форма для создания страницы (title + content);
+ *  - список страниц текущего пользователя;
+ *  - ссылки на просмотр отдельных страниц (/documents/[id]);
+ *  - кнопка выхода.
+ */
 
-export default function Home() {
+"use client";
+
+import { useSession, signOut } from "next-auth/react";
+import { useState, useEffect } from "react";
+
+export default function HomePage() {
+  const { data: session, status } = useSession();
+
+  // Локальное состояние
+  const [pages, setPages] = useState<any[]>([]);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [error, setError] = useState("");
+
+  // Загрузка списка страниц
+  const loadPages = async () => {
+    try {
+      const res = await fetch("/api/pages");
+      const data = await res.json();
+      if (res.ok) {
+        setPages(data);
+      } else {
+        setError(data.error || "Ошибка загрузки страниц");
+      }
+    } catch {
+      setError("Ошибка соединения с сервером");
+    }
+  };
+
+  // Создание новой страницы
+  const createPage = async () => {
+    setError("");
+    try {
+      const res = await fetch("/api/pages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setTitle("");
+        setContent("");
+        loadPages(); // обновляем список
+      } else {
+        setError(data.error || "Ошибка создания страницы");
+      }
+    } catch {
+      setError("Ошибка соединения с сервером");
+    }
+  };
+
+  // Загружаем страницы при входе
+  useEffect(() => {
+    if (status === "authenticated") {
+      loadPages();
+    }
+  }, [status]);
+
+  if (status === "loading") {
+    return <p style={{ padding: 20 }}>Загрузка...</p>;
+  }
+
+  if (!session) {
+    return (
+      <div style={{ padding: 20 }}>
+        <h1>Вы не авторизованы</h1>
+        <p>
+          Пожалуйста, <a href="/login">войдите</a>, чтобы работать со страницами.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div style={{ padding: 20, maxWidth: 600, margin: "0 auto" }}>
+      <h1>Главная страница</h1>
+      <p>Вы вошли как {session.user?.email}</p>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      {/* Форма создания страницы */}
+      <div style={{ marginBottom: 20, padding: 16, border: "1px solid #ddd", borderRadius: 8 }}>
+        <h2>Создать новую страницу</h2>
+        <input
+          type="text"
+          placeholder="Заголовок"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          style={{ width: "100%", marginBottom: 8, padding: 8 }}
+        />
+        <textarea
+          placeholder="Содержимое..."
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          style={{ width: "100%", marginBottom: 8, padding: 8, minHeight: 80 }}
+        />
+        <button onClick={createPage} style={{ padding: "8px 12px" }}>
+          Создать страницу
+        </button>
+      </div>
+
+      {/* Ошибки */}
+      {error && (
+        <div style={{ color: "red", marginBottom: 16 }}>
+          {error}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+
+      {/* Список страниц */}
+      <h2>Ваши страницы</h2>
+            <ul style={{ listStyle: "none", padding: 0 }}>
+        {pages.map((page) => (
+          <li
+            key={page._id}
+            style={{
+              border: "1px solid #ddd",
+              borderRadius: 8,
+              padding: 12,
+              marginBottom: 8,
+            }}
+          >
+            {/* ссылка на просмотр */}
+            <a
+              href={`/documents/${page._id}`}
+              style={{ fontWeight: "bold", textDecoration: "none", color: "#000" }}
+            >
+              {page.title}
+            </a>
+            <div style={{ fontSize: 14, color: "#666" }}>
+              {typeof page.content === "string" && page.content}
+              {typeof page.content === "object" && page.content?.blocks && (
+                <span>[Блоковый контент]</span>
+              )}
+            </div>
+            <div style={{ fontSize: 12, color: "#aaa" }}>
+              Создано: {new Date(page.createdAt).toLocaleString()}
+            </div>
+          </li>
+        ))}
+      </ul>
+
+
+      {/* Кнопка выхода */}
+      <button
+        onClick={() => signOut({ callbackUrl: "/login" })}
+        style={{ marginTop: 20 }}
+      >
+        Выйти
+      </button>
     </div>
   );
 }
