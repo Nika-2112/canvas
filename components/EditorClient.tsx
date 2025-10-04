@@ -1,83 +1,82 @@
 "use client";
 
 /**
- * EditorClient — инициализация Editor.js на клиенте.
+ * Компонент инициализации клиентского редактора Editor.js.
  *
- * Задача: убрать дублирующийся контейнер (двойной Editor.js).
- * Причина: в дев-режиме React 18 эффекты могут монтироваться дважды (StrictMode),
- *          поэтому второй экземпляр накладывается поверх первого.
- *
- * Лечение:
- *  1) Глобальный «одиночка» через window.__editorjsInstance: перед созданием — destroy() предыдущего.
- *  2) Жёсткая очистка контейнера #editorjs: удаляем все .codex-editor внутри.
- *  3) В cleanup — снова destroy() и очистка контейнера.
- *
- * Ничего больше не трогаем: ваш API автосохранения и остальной код остаётся прежним.
+ * Назначение и ключевые решения:
+ *  1) Инициализация Editor.js выполняется только на клиенте (динамические импорты модулей).
+ *  2) Контейнер редактора не имеет фиксированной минимальной высоты:
+ *     область редактирования подстраивается под фактическое содержимое.
+ *  3) Состав инструментов включает собственный инструмент «ToggleContainer»,
+ *     обеспечивающий вложенный редактор (аналог «Toggle» в Notion).
+ *  4) Все изменения содержимого передаются вызывающей стороне через колбэк onChange
+ *     после получения структурированных данных (OutputData) методом editor.save().
  */
 
 import { useEffect, useRef } from "react";
 import type { OutputData } from "@editorjs/editorjs";
 
 type Props = {
-  initialData: OutputData;                 // данные для первой инициализации
-  onChange: (data: OutputData) => void;    // колбэк изменений (родитель решает, что делать)
+  /** Данные для первичной инициализации Editor.js (формат OutputData). */
+  initialData: OutputData;
+  /** Колбэк, вызываемый при изменении содержимого редактора. */
+  onChange: (data: OutputData) => void;
 };
-
-// объявим тип для глобального синглтона
-declare global {
-  interface Window {
-    __editorjsInstance?: any;
-  }
-}
 
 export default function EditorClient({ initialData, onChange }: Props) {
   const editorRef = useRef<any>(null);
 
   useEffect(() => {
-    let canceled = false;
+    let editor: any;
 
     (async () => {
-      // Динамические импорты: только в браузере, исключаем SSR
-      const EditorJS  = (await import("@editorjs/editorjs")).default;
-      const Header    = (await import("@editorjs/header")).default;
-      const List      = (await import("@editorjs/list")).default;
-      const Checklist = (await import("@editorjs/checklist")).default;
-      const Quote     = (await import("@editorjs/quote")).default;
-      const Paragraph = (await import("@editorjs/paragraph")).default;
+      // Динамические импорты: исключают SSR и загружают плагины только в браузере.
+      const EditorJS   = (await import("@editorjs/editorjs")).default;
+      const Paragraph  = (await import("@editorjs/paragraph")).default;
+      const Header     = (await import("@editorjs/header")).default;
+      const List       = (await import("@editorjs/list")).default;
+      const Quote      = (await import("@editorjs/quote")).default;
 
-      // 0) Подготовим holder
-      const holderEl = document.getElementById("editorjs");
-      if (!holderEl) return;
+      // ВАЖНО: подключение собственного инструмента «ToggleContainer»
+      // (вложенный редактор с авто-высотой и заголовком рядом со стрелкой).
+      const ToggleCont = (await import("@/components/tools/ToggleContainer")).default;
 
-      // 1) Если в window уже есть экземпляр Editor.js — уничтожаем
-      if (window.__editorjsInstance && typeof window.__editorjsInstance.destroy === "function") {
-        try { window.__editorjsInstance.destroy(); } catch {}
-        window.__editorjsInstance = undefined;
-      }
+      editor = new EditorJS({
+        /**
+         * Идентификатор DOM-контейнера, в который Editor.js смонтирует интерфейс.
+         * На странице используется один экземпляр редактора, идентификатор фиксированный.
+         */
+        holder: "editorjs",
 
-      // 2) На всякий случай удалим все следы предыдущей разметки Editor.js
-      //    (если их оставил предыдущий экземпляр).
-      try {
-        const leftovers = holderEl.querySelectorAll(".codex-editor");
-        leftovers.forEach((el) => el.remove());
-        // и пустим сам контейнер
-        holderEl.innerHTML = "";
-      } catch {}
-
-      // 3) Создаём новый экземпляр
-      const editor = new EditorJS({
-        holder: "editorjs",                 // оставляем как у вас
+        /** Исходные структурированные данные документа. */
         data: initialData,
-        placeholder: "Начните писать...",
+
+        /** Подсказка для пустых параграфов. */
+        placeholder: "Начните писать…",
+
+        /** Включение всплывающей панели для инлайн-форматирования. */
         inlineToolbar: true,
+
+        /**
+         * Набор инструментов редактирования.
+         * Подключены базовые блоки и собственный инструмент «toggle».
+         */
         tools: {
+          paragraph: { class: Paragraph, inlineToolbar: true },
+
           header: {
             class: Header,
             inlineToolbar: ["bold", "italic"],
             config: { levels: [1, 2, 3], defaultLevel: 2 },
           },
-          list:      { class: List, inlineToolbar: true },
-          checklist: { class: Checklist, inlineToolbar: true },
+
+          // Списки (маркированный и нумерованный). Чек-лист вынесен отдельно при необходимости.
+          list: {
+            class: List,
+            inlineToolbar: true,
+            config: { defaultStyle: "unordered" },
+          },
+
           quote: {
             class: Quote,
             inlineToolbar: true,
@@ -86,59 +85,49 @@ export default function EditorClient({ initialData, onChange }: Props) {
               captionPlaceholder: "Автор",
             },
           },
-          paragraph: { class: Paragraph, inlineToolbar: true },
+
+          // Собственный инструмент: вложенный редактор «Toggle» (аналог Notion).
+          toggle: { class: ToggleCont, inlineToolbar: true },
         },
+
+        /**
+         * Колбэк изменений. Срабатывает при каждой модификации контента.
+         * Гарантирует передачу вызывающей стороне валидного OutputData.
+         */
         onChange: async () => {
-          if (canceled) return;
-          try {
-            const content = await editor.save();
-            onChange(content);
-          } catch {
-            /* ignore */
-          }
+          if (!editor) return;
+          const data = await editor.save();
+          onChange(data);
         },
       });
 
-      // 4) Сохраняем ссылки на инстанс — и в ref, и глобально (для защиты от дублей)
       editorRef.current = editor;
-      window.__editorjsInstance = editor;
     })();
 
-    // 5) Очистка при размонтировании
+    /**
+     * Корректное уничтожение экземпляра редактора при размонтировании компонента.
+     * Предотвращает утечки ресурсов и дублирование экземпляров при повторном монтировании.
+     */
     return () => {
-      canceled = true;
-
-      // локальная ссылка
       if (editorRef.current && typeof editorRef.current.destroy === "function") {
-        try { editorRef.current.destroy(); } catch {}
+        editorRef.current.destroy();
       }
       editorRef.current = null;
-
-      // глобальная ссылка
-      if (window.__editorjsInstance && typeof window.__editorjsInstance.destroy === "function") {
-        try { window.__editorjsInstance.destroy(); } catch {}
-      }
-      window.__editorjsInstance = undefined;
-
-      // подчистим контейнер
-      const holderEl = document.getElementById("editorjs");
-      if (holderEl) {
-        try {
-          const leftovers = holderEl.querySelectorAll(".codex-editor");
-          leftovers.forEach((el) => el.remove());
-          holderEl.innerHTML = "";
-        } catch {}
-      }
     };
-    // Важно: [] — редактор создаётся один раз на монтирование
+    // Пустой массив зависимостей гарантирует инициализацию Editor.js ровно один раз.
   }, []);
 
   return (
     <div
       id="editorjs"
+      /**
+       * Контейнер редактора без фиксированной минимальной высоты.
+       * Базовые отступы подобраны для компактного отображения,
+       * «лишний воздух» дополнительно убирается стилями в app/globals.css.
+       */
       className="
         prose prose-neutral max-w-none
-        min-h-[300px] p-4
+        p-0
         border border-gray-200 rounded-md
         bg-white
       "

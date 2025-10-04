@@ -1,22 +1,152 @@
-/* 
- * Глобальные стили приложения.
- * Tailwind CSS v4 подключается одной строкой:
- *   @import "tailwindcss";
- * Это заменяет устаревшие директивы @tailwind base/components/utilities.
- */
-@import "tailwindcss";
+/* ================= ToggleContainer (вложенный редактор) ================
+ * Назначение:
+ *  - Отрисовка «Toggle» в стиле Notion: строка-заголовок + раскрываемый контент.
+ *  - Поддержка произвольной вложенности без «протекания» содержимого.
+ *  - Корректная работа тулбаров/поповеров Editor.js внутри тоггла.
+ * ====================================================================== */
 
-/* Базовые стили документа */
-body {
-  background-color: #ffffff; /* светлый фон (по умолчанию) */
-  color: #171717;            /* основной цвет текста */
-  font-family: Arial, Helvetica, sans-serif; /* простой читаемый шрифт */
+/* Внешний контейнер тоггла: без рамок и фона (как в Notion) */
+.tgc-wrapper {
+  position: relative;      /* опорный слой для псевдо-элементов и всплывающих слоёв */
+  margin: 6px 0;
+  background: transparent; /* отсутствие «коробки» вокруг тоггла */
+  border: none;
+  overflow: visible;       /* поповеры/тулбары не обрезаются */
+  z-index: 0;
 }
 
-a {
-  color: #2563eb; /* синий (в стиле Tailwind `blue-600`) */
-  text-decoration: none;
+/* Шапка тоггла: стрелка + заголовок */
+.tgc-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;        /* компактный вертикальный ритм */
+  cursor: pointer;
 }
-a:hover {
-  text-decoration: underline;
+.tgc-arrow {
+  background: none;
+  border: none;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  transition: transform .2s ease;
 }
+/* .tgc-opened — модификатор открытого состояния на корневом контейнере */
+.tgc-opened .tgc-arrow { transform: rotate(90deg); }
+
+.tgc-title {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-weight: 600;
+  font-size: 14px;
+  color: inherit;
+}
+.tgc-title::placeholder { color: #9ca3af; }
+
+/* Клип-обёртка (анимация раскрытия). ВАЖНО: создаём новый BFC, чтобы
+ * исключить схлопывание margin у первого/последнего блока (flow-root). */
+.tgc-inner-clip {
+  display: flow-root;       /* предотвращает «выпирание» контента наружу */
+  background: transparent;
+  border: none;
+  padding: 0 6px 0 22px;    /* отступ слева — после стрелки */
+  max-height: 0;            /* закрыто — схлопнуто */
+  overflow-y: hidden;       /* закрыто — строго скрываем вертикально */
+  overflow-x: visible;
+  transition: max-height .25s ease, padding .25s ease;
+}
+
+/* Открытое состояние: минимальные вертикальные отступы, высота — по контенту */
+.tgc-opened .tgc-inner-clip {
+  padding: 4px 6px 4px 22px;
+  max-height: var(--tgc-target-h, 0px);
+  overflow: visible;        /* открыто — ничего не обрезаем */
+}
+
+/* Жёсткое скрытие содержимого закрытого тоггла (исключает «просветы»)
+ * — полезно при сложных вложенностях и маргинах внутренних блоков. */
+.tgc-wrapper:not(.tgc-opened) .tgc-inner-clip {
+  max-height: 0 !important;
+  padding: 0 6px 0 22px !important;
+  overflow: hidden !important;
+}
+/* Прячем сам внутренний редактор, чтобы DOM не «просвечивал» в закрытом виде */
+.tgc-wrapper:not(.tgc-opened) .tgc-inner-clip .codex-editor {
+  display: none !important;
+}
+.tgc-opened .tgc-inner-clip .codex-editor {
+  display: block !important;
+}
+
+/* Внутренний холдер редактора (опорный контекст для тулбаров) */
+.tgc-inner-holder {
+  position: relative;
+  overflow: visible;
+}
+
+/* Компактная типографика внутренних блоков Editor.js */
+.tgc-inner-holder .ce-block { margin: 0; padding: 2px 0; }
+.tgc-inner-holder .ce-paragraph { margin: 0; }
+
+/* Заголовки Editor.js — ступенчатые размеры (близко к Notion) */
+.tgc-inner-holder .ce-header { margin: 2px 0 4px; }
+.tgc-inner-holder .ce-header[data-level="1"] { font-size: 1.25rem; } /* ~20px */
+.tgc-inner-holder .ce-header[data-level="2"] { font-size: 1.125rem; }/* ~18px */
+.tgc-inner-holder .ce-header[data-level="3"] { font-size: 1rem; }    /* ~16px */
+
+/* Цитата — только левая линия без «формы» */
+.tgc-inner-holder .cdx-quote {
+  border-left: 3px solid #e5e7eb;
+  padding: 4px 10px;
+  background: transparent;
+}
+.tgc-inner-holder .cdx-quote .cdx-input { padding: 0; }
+
+/* Списки — компактные отступы */
+.tgc-inner-holder .cdx-list { margin: 2px 0 4px; }
+
+/* ====== Вложенность (как в Notion) =================================== */
+.tgc-inner-holder .tgc-wrapper {
+  margin: 4px 0 4px 16px;   /* смещение для уровня вложенности */
+}
+/* Тонкая вертикальная линия слева — визуальная иерархия */
+.tgc-inner-holder .tgc-wrapper::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: #e5e7eb;
+  border-radius: 2px;
+  pointer-events: none;     /* линия не блокирует клик по шапке */
+}
+
+/* Тулбары/поповеры Editor.js внутри тоггла — поверх остального */
+.tgc-wrapper .ce-toolbar,
+.tgc-wrapper .ce-inline-toolbar,
+.tgc-wrapper .ce-popover { z-index: 200; }
+
+/* Позиция «плюса/ручки» — вровень с левым полем контента тоггла */
+.tgc-wrapper .ce-toolbar { left: 8px !important; }
+
+/* Тёмная тема — адаптация оттенков линий/цитаты */
+@media (prefers-color-scheme: dark) {
+  .tgc-inner-holder .tgc-wrapper::before { background: #2a2a30; }
+  .tgc-inner-holder .cdx-quote { border-left-color: #2a2a30; }
+}
+
+/* Уплотнение встроенного Editor.js внутри тоггла: без базовой «поддержки» на дне */
+.tgc-inner-holder .codex-editor { min-height: 0 !important; }
+.tgc-inner-holder .codex-editor__redactor { padding-bottom: 0 !important; min-height: 0 !important; }
+
+.codex-editor .ce-toolbar,
+.codex-editor .ce-inline-toolbar,
+.codex-editor .ce-popover {
+  z-index: 200;            /* выше, чем 120 у вложенных элементов */
+}
+
