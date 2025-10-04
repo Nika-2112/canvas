@@ -1,11 +1,8 @@
-/**
- * Конфигурация Next.js
- * 
- * В этой версии Next.js (15.5.2) параметр `experimental.turbo` больше не используется.
- * Для сборки применяется Webpack (по умолчанию), Turbopack отключён.
- */
+/** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Здесь можно добавить любые будущие настройки Next.js при необходимости.
+  // В dev-режиме React повторно монтирует эффекты (Editor.js плодит 2 экземпляра).
+  // Отключаем StrictMode, чтобы useEffect вызывался ровно один раз.
+  reactStrictMode: false,
 };
 
 module.exports = nextConfig;
