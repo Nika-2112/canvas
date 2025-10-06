@@ -35,7 +35,7 @@ export default function EditorClient({ initialData, onChange }: Props) {
       const Paragraph  = (await import("@editorjs/paragraph")).default;
       const Header     = (await import("@editorjs/header")).default;
       const List       = (await import("@editorjs/list")).default;
-      const Quote      = (await import("@editorjs/quote")).default;
+      const Quote = (await import("@/components/tools/QuoteNotion")).default;
 
       // ВАЖНО: подключение собственного инструмента «ToggleContainer»
       // (вложенный редактор с авто-высотой и заголовком рядом со стрелкой).
@@ -81,8 +81,9 @@ export default function EditorClient({ initialData, onChange }: Props) {
             class: Quote,
             inlineToolbar: true,
             config: {
-              quotePlaceholder: "Введите цитату",
-              captionPlaceholder: "Автор",
+              quotePlaceholder: "Введите цитату...",
+              captionPlaceholder: "", // убираем автора
+              disableCaption: true,   // блокируем появление поля автора
             },
           },
 

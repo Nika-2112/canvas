@@ -1,26 +1,27 @@
-/* ================= ToggleContainer (вложенный редактор) ================
- * Назначение:
- *  - Отрисовка «Toggle» в стиле Notion: строка-заголовок + раскрываемый контент.
- *  - Поддержка произвольной вложенности без «протекания» содержимого.
- *  - Корректная работа тулбаров/поповеров Editor.js внутри тоггла.
+/* ======================================================================
+ * ToggleContainer (вложенный редактор) — оформление в стиле Notion
+ *  - строка-заголовок с раскрытием;
+ *  - произвольная вложенность без «протекания» контента;
+ *  - корректная работа тулбаров/поповеров Editor.js;
+ *  - исключено перекрытие глобальных элементов добавления блоков.
  * ====================================================================== */
 
-/* Внешний контейнер тоггла: без рамок и фона (как в Notion) */
+/* Корневой контейнер тоггла */
 .tgc-wrapper {
-  position: relative;      /* опорный слой для псевдо-элементов и всплывающих слоёв */
+  position: relative;      /* опорный слой для псевдо-элементов */
   margin: 6px 0;
   background: transparent; /* отсутствие «коробки» вокруг тоггла */
   border: none;
   overflow: visible;       /* поповеры/тулбары не обрезаются */
-  z-index: 0;
+  z-index: 0;              /* не перекрывает глобальные тулбары Editor.js */
 }
 
-/* Шапка тоггла: стрелка + заголовок */
+/* Шапка тоггла (стрелка + заголовок) */
 .tgc-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 6px;        /* компактный вертикальный ритм */
+  padding: 2px 6px;
   cursor: pointer;
 }
 .tgc-arrow {
@@ -33,7 +34,6 @@
   cursor: pointer;
   transition: transform .2s ease;
 }
-/* .tgc-opened — модификатор открытого состояния на корневом контейнере */
 .tgc-opened .tgc-arrow { transform: rotate(90deg); }
 
 .tgc-title {
@@ -47,10 +47,9 @@
 }
 .tgc-title::placeholder { color: #9ca3af; }
 
-/* Клип-обёртка (анимация раскрытия). ВАЖНО: создаём новый BFC, чтобы
- * исключить схлопывание margin у первого/последнего блока (flow-root). */
+/* Клип-обёртка: анимация раскрытия; новый BFC исключает схлопывание margin */
 .tgc-inner-clip {
-  display: flow-root;       /* предотвращает «выпирание» контента наружу */
+  display: flow-root;       /* предотвращает «выпирание» первых/последних блоков */
   background: transparent;
   border: none;
   padding: 0 6px 0 22px;    /* отступ слева — после стрелки */
@@ -60,21 +59,19 @@
   transition: max-height .25s ease, padding .25s ease;
 }
 
-/* Открытое состояние: минимальные вертикальные отступы, высота — по контенту */
+/* Открытое состояние: высота по контенту, минимальные вертикальные поля */
 .tgc-opened .tgc-inner-clip {
   padding: 4px 6px 4px 22px;
   max-height: var(--tgc-target-h, 0px);
-  overflow: visible;        /* открыто — ничего не обрезаем */
+  overflow: visible;
 }
 
-/* Жёсткое скрытие содержимого закрытого тоггла (исключает «просветы»)
- * — полезно при сложных вложенностях и маргинах внутренних блоков. */
+/* Жёсткое скрытие содержимого закрытого тоггла */
 .tgc-wrapper:not(.tgc-opened) .tgc-inner-clip {
   max-height: 0 !important;
   padding: 0 6px 0 22px !important;
   overflow: hidden !important;
 }
-/* Прячем сам внутренний редактор, чтобы DOM не «просвечивал» в закрытом виде */
 .tgc-wrapper:not(.tgc-opened) .tgc-inner-clip .codex-editor {
   display: none !important;
 }
@@ -82,7 +79,7 @@
   display: block !important;
 }
 
-/* Внутренний холдер редактора (опорный контекст для тулбаров) */
+/* Внутренний холдер редактора */
 .tgc-inner-holder {
   position: relative;
   overflow: visible;
@@ -92,28 +89,17 @@
 .tgc-inner-holder .ce-block { margin: 0; padding: 2px 0; }
 .tgc-inner-holder .ce-paragraph { margin: 0; }
 
-/* Заголовки Editor.js — ступенчатые размеры (близко к Notion) */
+/* Заголовки Editor.js — ступенчатые размеры */
 .tgc-inner-holder .ce-header { margin: 2px 0 4px; }
 .tgc-inner-holder .ce-header[data-level="1"] { font-size: 1.25rem; } /* ~20px */
 .tgc-inner-holder .ce-header[data-level="2"] { font-size: 1.125rem; }/* ~18px */
 .tgc-inner-holder .ce-header[data-level="3"] { font-size: 1rem; }    /* ~16px */
 
-/* Цитата — только левая линия без «формы» */
-.tgc-inner-holder .cdx-quote {
-  border-left: 3px solid #e5e7eb;
-  padding: 4px 10px;
-  background: transparent;
-}
-.tgc-inner-holder .cdx-quote .cdx-input { padding: 0; }
-
 /* Списки — компактные отступы */
 .tgc-inner-holder .cdx-list { margin: 2px 0 4px; }
 
-/* ====== Вложенность (как в Notion) =================================== */
-.tgc-inner-holder .tgc-wrapper {
-  margin: 4px 0 4px 16px;   /* смещение для уровня вложенности */
-}
-/* Тонкая вертикальная линия слева — визуальная иерархия */
+/* Вложенность тогглов: смещение и тонкая вертикальная линия слева */
+.tgc-inner-holder .tgc-wrapper { margin: 4px 0 4px 16px; }
 .tgc-inner-holder .tgc-wrapper::before {
   content: "";
   position: absolute;
@@ -123,30 +109,181 @@
   width: 2px;
   background: #e5e7eb;
   border-radius: 2px;
-  pointer-events: none;     /* линия не блокирует клик по шапке */
+  pointer-events: none;     /* не блокирует клики по шапке */
 }
 
-/* Тулбары/поповеры Editor.js внутри тоггла — поверх остального */
+/* Тулбары/поповеры Editor.js внутри тоггла — поверх его контента */
 .tgc-wrapper .ce-toolbar,
 .tgc-wrapper .ce-inline-toolbar,
-.tgc-wrapper .ce-popover { z-index: 200; }
+.tgc-wrapper .ce-popover { z-index: 210; }
 
-/* Позиция «плюса/ручки» — вровень с левым полем контента тоггла */
+/* Позиция «плюса/ручки» относительно контента тоггла */
 .tgc-wrapper .ce-toolbar { left: 8px !important; }
 
-/* Тёмная тема — адаптация оттенков линий/цитаты */
-@media (prefers-color-scheme: dark) {
-  .tgc-inner-holder .tgc-wrapper::before { background: #2a2a30; }
-  .tgc-inner-holder .cdx-quote { border-left-color: #2a2a30; }
-}
-
-/* Уплотнение встроенного Editor.js внутри тоггла: без базовой «поддержки» на дне */
+/* Уплотнение встроенного Editor.js внутри тоггла */
 .tgc-inner-holder .codex-editor { min-height: 0 !important; }
 .tgc-inner-holder .codex-editor__redactor { padding-bottom: 0 !important; min-height: 0 !important; }
 
+/* Глобальные тулбары/поповеры Editor.js — приоритетнее всего */
 .codex-editor .ce-toolbar,
 .codex-editor .ce-inline-toolbar,
-.codex-editor .ce-popover {
-  z-index: 200;            /* выше, чем 120 у вложенных элементов */
+.codex-editor .ce-popover { z-index: 220; }
+
+/* Тёмная тема: оттенки линий */
+@media (prefers-color-scheme: dark) {
+  .tgc-inner-holder .tgc-wrapper::before { background: #2a2a30; }
+}
+
+/* ======================================================================
+ * Quote (Editor.js) — как в Notion:
+ *  - только вертикальная линия слева;
+ *  - без автора, без рамок/фокусов/теней;
+ *  - СТРОГО В ОДНУ СТРОКУ (с многоточием при переполнении).
+ * ====================================================================== */
+
+
+/* Контейнер цитаты: только левая линия + одна строка по высоте */
+.codex-editor .cdx-quote {
+  /* оставляем только левую границу */
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  border-left: 3px solid #e5e7eb !important;
+
+  padding-left: 12px !important;      /* отступ между линией и текстом */
+  margin: 6px 0 !important;
+
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+
+  /* однострочное «окно» */
+  line-height: 1.5 !important;
+  height: 1.5em !important;           /* ровно одна строка по высоте */
+  max-height: 1.5em !important;
+  overflow: hidden !important;         /* прячем всё ниже первой строки */
+}
+
+/* Текст внутри — inline и с обрезкой «…» */
+.codex-editor .cdx-quote .cdx-input,
+.codex-editor .cdx-quote .cdx-input:focus,
+.codex-editor .cdx-quote .cdx-input:focus-visible,
+.codex-editor .cdx-quote .cdx-input:focus-within {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+
+  display: inline !important;          /* ключ: не блочный, а inline */
+  white-space: nowrap !important;
+  text-overflow: ellipsis !important;
+  overflow: hidden !important;
+
+  font-style: normal !important;
+  color: inherit !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+}
+
+/* Editor.js иногда вкладывает div/ br — приводим к inline и убираем переносы */
+.codex-editor .cdx-quote .cdx-input > div {
+  display: inline !important;
+}
+.codex-editor .cdx-quote .cdx-input br {
+  display: none !important;
+}
+
+/* Поле «Автор» — скрыть полностью */
+.codex-editor .cdx-quote__caption {
+  display: none !important;
+}
+
+/* Внутренние обёртки плагина — без рамок/паддингов/теней */
+.codex-editor .cdx-quote .cdx-block {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Фокус/выделение: оставляем только левую линию, без подсветок */
+.codex-editor .ce-block--focused .cdx-quote,
+.codex-editor .ce-block--selected .cdx-quote {
+  background: transparent !important;
+  box-shadow: none !important;
+
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  border-left: 3px solid #e5e7eb !important;
+}
+
+/* Hover — мягкий отклик */
+.codex-editor .cdx-quote:hover {
+  border-left-color: #d1d5db;
+}
+
+/* Тёмная тема — корректный цвет линии */
+@media (prefers-color-scheme: dark) {
+  .codex-editor .cdx-quote,
+  .codex-editor .ce-block--focused .cdx-quote,
+  .codex-editor .ce-block--selected .cdx-quote {
+    border-left-color: #2a2a30 !important;
+  }
+}
+
+
+
+/* ======= Quote sizes (вид меню как у Editor.js + "Large" стиль) ======= */
+.qn-settings {
+  padding: 6px 0;
+}
+
+.qn-settings__title {
+  font-size: 12px;
+  line-height: 1;
+  color: #6b7280; /* gray-500 */
+  margin: 0 0 6px 0;
+  user-select: none;
+}
+
+.qn-settings__group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.qn-size-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  line-height: 1;
+}
+
+.qn-size-option__icon {
+  display: inline-flex;
+}
+
+.qn-size-option__label {
+  font-size: 13px;
+}
+
+/* Активная кнопка — аккуратная инверсия, как у Editor.js */
+.qn-size-option.cdx-settings-button--active {
+  background: #111827; /* gray-900 */
+  color: #fff;
+}
+
+/* Крупная цитата (Notion-подобная) */
+.codex-editor .cdx-quote--large {
+  font-size: 1.125rem !important; /* ~18px */
+  line-height: 1.6 !important;
+  border-left-width: 4px !important;
+  padding-left: 14px !important;
 }
 
