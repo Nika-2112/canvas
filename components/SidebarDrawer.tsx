@@ -1,60 +1,77 @@
 "use client";
 
 /**
- * SidebarDrawer — выезжающий слева сайдбар в стиле Notion.
+ * SidebarDrawer — выезжающий слева сайдбар (поверх контента).
+ * - Свёрнут по умолчанию; открывается/закрывается по клику на кнопку.
+ * - На мобилках ширина фикс. 90vw; на десктопах — от min..max (ресайз правым краем).
+ * - Стили берём из globals.css через селекторы #sd-root .sd-*
+ * - Внутри рендерим <Sidebar variant="drawer" />
  *
- * Ключевые особенности:
- *  - Корневой wrapper имеет id="sd-root". Все CSS-правила скоупятся через этот id,
- *    чтобы не влиять на другие элементы приложения.
- *  - Кнопка-«бургер» — фиксируется поверх контента; панель — выезжает поверх контента,
- *    НЕ сдвигая основную страницу.
- *  - По умолчанию панель скрыта. Открытие/закрытие — по клику на иконку (или по оверлею).
- *  - Ширина на десктопе: от 15% до 30% (ресайз мышью с правого края).
- *  - На мобильных устройствах — 90% ширины экрана.
- *  - Геометрия панели по ТЗ: height: 70vh; margin-left: 40px; top: 10px;
- *    border-top-right-radius: 20px; border-bottom-right-radius: 20px.
- *
- * Как подставить свою иконку:
- *   <SidebarDrawer menuIcon={<img src="/menu.svg" alt="menu" />} />
+ * Как подставить свою иконку-кнопку:
+ *   <SidebarDrawer menuIcon={<img src="/menu.svg" alt="menu" width={18} height={18} />} />
  */
 
 import { useEffect, useRef, useState } from "react";
+import Sidebar from "@/components/Sidebar";
+
+/** Границы ширины панели по брейкпоинтам */
+function getLimits(vw: number, isMobile: boolean) {
+  // 📱 Мобилки — фикс 90% экрана
+  if (isMobile || vw <= 768) {
+    const fixed = Math.round(vw * 0.9);
+    return { min: fixed, max: fixed };
+  }
+  // 💻 Планшеты / ноутбуки
+  if (vw > 768 && vw <= 1366) {
+    const min = Math.round(vw * 0.25);
+    const max = Math.round(vw * 0.5);
+    return { min, max };
+  }
+  // 🖥️ Крупные экраны
+  const min = Math.round(vw * 0.19);
+  const max = Math.round(vw * 0.5);
+  return { min, max };
+}
 
 type Props = {
-  /** Любой React-элемент (svg, img, иконка) для кнопки-меню */
+  /** Любая иконка/кнопка для открытия меню */
   menuIcon?: React.ReactNode;
 };
 
 export default function SidebarDrawer({ menuIcon }: Props) {
-  const [open, setOpen] = useState<boolean>(false);
+  const [open, setOpen] = useState(false);
 
-  // Текущая ширина панели в пикселях (для десктопов).
-  const [panelWidthPx, setPanelWidthPx] = useState<number>(0);
+  // Текущая ширина панели (px)
+  const [panelWidthPx, setPanelWidthPx] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // Признак мобильного режима (<= 768px).
-  const [isMobile, setIsMobile] = useState<boolean>(false);
+  // Драг-ресайз
+  const dragRef = useRef<{ active: boolean; startX: number; startWidth: number }>({
+    active: false,
+    startX: 0,
+    startWidth: 0,
+  });
 
-  // Ресайз-драг: активен ли, и откуда начат.
-  const dragRef = useRef<{
-    active: boolean;
-    startX: number;
-    startWidth: number;
-  }>({ active: false, startX: 0, startWidth: 0 });
-
-  // Инициализация ширины и mobile-флага
+  // Инициализация размеров
   useEffect(() => {
     const update = () => {
       const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
       const mobile = vw <= 768;
       setIsMobile(mobile);
 
-      if (mobile) {
-        // на мобильных — всегда 90vw
-        setPanelWidthPx(Math.round(vw * 0.9));
-      } else {
-        // на десктопе — по умолчанию 15vw
-        setPanelWidthPx(Math.round(vw * 0.15));
-      }
+      // дефолтная ширина
+      let ratio = 0.2; // десктоп по умолчанию ~20vw
+      if (vw <= 480) ratio = 0.95;
+      else if (vw <= 768) ratio = 0.9;
+      else if (vw <= 1024) ratio = 0.28;
+      else if (vw <= 1440) ratio = 0.18;
+      else ratio = 0.2;
+
+      const { min, max } = getLimits(vw, mobile);
+      setPanelWidthPx((prev) => {
+        const next = prev > 0 ? prev : Math.round(vw * ratio);
+        return Math.max(min, Math.min(max, next));
+      });
     };
 
     update();
@@ -62,47 +79,42 @@ export default function SidebarDrawer({ menuIcon }: Props) {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Старт перетягивания правого края
+  // Открыть/закрыть
+  const toggleOpen = () => setOpen((v) => !v);
+
+  // Ресайз — начало
   const onResizeStart = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isMobile) return; // на мобильных не ресайзим
+    if (isMobile) return;
     e.preventDefault();
-    dragRef.current = {
-      active: true,
-      startX: e.clientX,
-      startWidth: panelWidthPx,
-    };
-    // Вешаем обработчики на документ, чтобы ловить движение вне панели
+    dragRef.current = { active: true, startX: e.clientX, startWidth: panelWidthPx };
     document.addEventListener("mousemove", onResizing);
     document.addEventListener("mouseup", onResizeEnd);
   };
 
-  // Во время перетягивания
+  // Ресайз — процесс
   const onResizing = (e: MouseEvent) => {
     if (!dragRef.current.active || isMobile) return;
+    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+    const { min, max } = getLimits(vw, isMobile);
+    if (max - min <= 1) return; // диапазона нет — не ресайзим
+
     const delta = e.clientX - dragRef.current.startX;
     const next = dragRef.current.startWidth + delta;
-
-    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-    const min = Math.round(vw * 0.15); // 15%
-    const max = Math.round(vw * 0.3);  // 30%
     const clamped = Math.max(min, Math.min(max, next));
     setPanelWidthPx(clamped);
   };
 
-  // Завершение перетягивания
+  // Ресайз — конец
   const onResizeEnd = () => {
     dragRef.current.active = false;
     document.removeEventListener("mousemove", onResizing);
     document.removeEventListener("mouseup", onResizeEnd);
   };
 
-  // Щелчок по бургеру — открыть/закрыть
-  const toggleOpen = () => setOpen((v) => !v);
-
   return (
-    // ВАЖНО: id="sd-root" — корневой скоуп для всех стилей сайдбара
+    // id="sd-root" — ключ для скоупа стилей в globals.css
     <div id="sd-root" aria-live="polite">
-      {/* Кнопка-«бургер». Стили полностью задаются в globals.css через #sd-root .sd-button */}
+      {/* Кнопка-«бургер». Стили задаются классом .sd-button (globals.css) */}
       <button
         type="button"
         className="sd-button"
@@ -112,21 +124,20 @@ export default function SidebarDrawer({ menuIcon }: Props) {
         onClick={toggleOpen}
       >
         {menuIcon ?? (
-          // Дефолтная иконка (если свою не передали)
-          <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="img" aria-hidden="true" width={24} height={24}>
             <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
         )}
       </button>
 
-      {/* Оверлей: кликом закрывает панель. НЕ влияет на лейаут (position: fixed). */}
+      {/* Оверлей — кликом закрывает */}
       <div
         className={`sd-overlay ${open ? "sd-overlay--show" : ""}`}
         aria-hidden={!open}
         onClick={() => setOpen(false)}
       />
 
-      {/* Панель: фиксированная, поверх контента. Не сдвигает основной layout. */}
+      {/* Панель поверх контента */}
       <aside
         id="sd-panel"
         role="complementary"
@@ -135,18 +146,18 @@ export default function SidebarDrawer({ menuIcon }: Props) {
         style={{
           width: isMobile ? "90vw" : `${panelWidthPx}px`,
           height: "90vh",
-          marginLeft: "0px",
           top: "60px",
+          marginLeft: "0px",
           borderTopRightRadius: "20px",
           borderBottomRightRadius: "20px",
         }}
       >
-        {/* Внутреннее содержимое (пока заглушка) */}
-        <div className="sd-panel__inner">
-          Пустой сайдбар. Здесь будет навигация.
+        {/* Внутри — наш Sidebar в режиме drawer */}
+        <div className="sd-panel__inner sd-sidebar" style={{ height: "100%", overflow: "auto" }}>
+          <Sidebar variant="drawer" />
         </div>
 
-        {/* Ручка для ресайза (справа). Только десктоп. */}
+        {/* Ручка ресайза справа (только десктоп) */}
         {!isMobile && <div className="sd-resize-handle" onMouseDown={onResizeStart} />}
       </aside>
     </div>
