@@ -7,6 +7,45 @@
  * ====================================================================== */
 
 /* Корневой контейнер тоггла */
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Raleway";
+  src: url("/fonts/Raleway/Raleway-Light.ttf") format("ttf");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Raleway";
+  src: url("/fonts/Raleway/Raleway-Regular.ttf") format("ttf");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Raleway";
+  src: url("/fonts/Raleway/Raleway-Medium.ttf") format("ttf");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Raleway";
+  src: url("/fonts/Raleway/Raleway-SemiBold.ttf") format("ttf");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-sans: "Raleway",  ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+               Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
+               "Segoe UI Emoji", "Segoe UI Symbol";
+} 
+
+
+
 .tgc-wrapper {
   position: relative;      /* опорный слой для псевдо-элементов */
   margin: 6px 0;
@@ -285,5 +324,83 @@
   line-height: 1.6 !important;
   border-left-width: 4px !important;
   padding-left: 14px !important;
+}
+
+/* Нежный скролл на тёмной панели */
+aside::-webkit-scrollbar { width: 8px; }
+aside::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 8px; }
+aside::-webkit-scrollbar-track { background: #161616; }
+
+/* Плавные hover-эффекты выглядят лучше с этим */
+* { -webkit-tap-highlight-color: transparent; }
+
+#sd-root .sd-button{
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  background-color: transparent;
+  border: none;
+  
+}
+
+
+/* Оверлей за панелью (полупрозрачный фон), не влияет на лейаут */
+#sd-root .sd-overlay {
+  position: fixed;
+  inset: 0;                /* top/right/bottom/left: 0 */
+  background: rgba(0, 0, 0, 0); /* по ТЗ без затемнения; можно 0.2–0.4, если захочешь */
+  opacity: 0;
+  pointer-events: none;    /* когда закрыт — клики проходят мимо */
+  transition: opacity .25s ease;
+  z-index: 1990;
+}
+
+
+/* Панель: фиксированная, поверх контента; изначально за экраном (translateX) */
+#sd-root .sd-panel {
+  position: fixed;
+  left: 0;
+  z-index: 1960;
+  background: #fff;
+  /* Без рамок/тени по умолчанию, как просили — можно включить при желании: */
+  border: 1px solid rgba(95, 94, 91, 0.20);
+  box-shadow: 3px 3px 3px rgba(95, 94, 91, 0.20);
+
+
+  will-change: transform;
+  transform: translateX(calc(-100% - 40px)); /* спрятана за левым краем с учётом margin-left: 40px */
+  transition: transform .3s ease-out;
+  overflow: hidden; /* чтобы содержимое не выпирало сквозь скругления */
+}
+/* Открытое состояние — сдвигаем в кадр */
+#sd-root .sd-panel.sd-panel--open {
+  transform: translateX(0);
+}
+
+/* Внутренний отступ панели */
+#sd-root .sd-panel__inner {
+  padding: 16px;
+  font-size: 14px;
+  color: #4b5563; /* gray-600 */
+}
+
+/* Ручка для ресайза: узкая полоса справа, увеличенная зона клика */
+#sd-root .sd-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 6px;
+  height: 100%;
+  cursor: ew-resize;
+  /* визуально почти не видна; можно подсветить на hover: */
+  background: transparent;
+}
+#sd-root .sd-resize-handle:hover {
+  background: rgba(0,0,0,0.04);
+}
+
+/* Мобильная адаптация (на самом деле ширину панелей мы задаём инлайном из TS) */
+@media (max-width: 768px) {
+  #sd-root .sd-resize-handle { display: none; } /* нет ресайза на мобилках */
 }
 

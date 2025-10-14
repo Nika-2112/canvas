@@ -1,23 +1,20 @@
 import "./globals.css";
-import { Inter } from "next/font/google";
+import type { ReactNode } from "react";
 import SessionWrapper from "@/components/SessionWrapper";
+import SidebarDrawer from "@/components/SidebarDrawer";
 
-const inter = Inter({ subsets: ["latin"] });
-
-export const metadata = {
-  title: "Canvas App",
-  description: "Информационная система управления личной информацией и проектами",
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ru">
-      <body className={inter.className}>
-        <SessionWrapper>{children}</SessionWrapper>
+      <body className="bg-white text-black">
+        <SessionWrapper>
+          {/* Кнопка + слой выезжающего меню.
+             Передаём свою иконку через проп menuIcon (вариант Б): */}
+          <SidebarDrawer menuIcon={<img src="/menu.svg" alt="menu" width={18} height={18} />} />
+
+          {/* Основная область */}
+          <main className="min-h-screen">{children}</main>
+        </SessionWrapper>
       </body>
     </html>
   );

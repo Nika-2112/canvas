@@ -1,19 +1,25 @@
 /**
- * Модель страницы (Page).
- * Изменение: поле content хранится как "смешанный" тип (Mixed),
- * что позволяет сохранять объект JSON (например, структуру Editor.js).
+ * Модель Page — страница/документ пользователя.
+ * Доп. поле:
+ *  - projectId: ссылка на Project (опционально), для привязки к «книге/проекту».
  */
 
-import mongoose, { Schema, model, models } from "mongoose";
+import mongoose, { Schema, InferSchemaType, models } from "mongoose";
 
 const PageSchema = new Schema(
   {
-    userId: { type: String, required: true },   // владелец страницы
-    title: { type: String, required: true },    // заголовок
-    // Mixed разрешает как строку, так и объект. Для Editor.js используем объект { time, blocks, version }.
-    content: { type: Schema.Types.Mixed, default: { blocks: [] } },
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+
+    title: { type: String, required: true, trim: true },
+
+    // content может быть строкой (старый формат) или Editor.js JSON (Mixed)
+    content: { type: Schema.Types.Mixed, required: true },
+
+    // привязка к проекту/книге (опционально)
+    projectId: { type: Schema.Types.ObjectId, ref: "Project", required: false, index: true },
   },
   { timestamps: true }
 );
 
-export const Page = models.Page || model("Page", PageSchema);
+export type Page = InferSchemaType<typeof PageSchema>;
+export const Page = models.Page || mongoose.model("Page", PageSchema);
