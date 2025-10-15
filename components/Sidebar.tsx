@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import clsx from "clsx";
 import SidebarTree, { PageDto } from "@/components/SidebarTree";
+import SearchOverlay from "@/components/SearchOverlay";
 
 type ProjectDto = {
   _id: string;
@@ -43,6 +44,22 @@ export default function Sidebar({ variant = "standalone" }: Props) {
 
   const [pages, setPages] = useState<PageDto[]>([]);
 
+  // 🔎 состояние для полотна поиска
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Глобальный шорткат Ctrl/Cmd + K — открыть поиск
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const isCmdK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k";
+      if (isCmdK) {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
   // --- Страницы (дерево Notion-подобное) ---
   const loadPages = async () => {
     try {
@@ -59,7 +76,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
     loadPages();
   }, []);
 
-  // Создать корневую страницу (без title — сервер присвоит «Новая страница»)
+  // Создать корневую страницу
   const createRootPage = async () => {
     try {
       const res = await fetch("/api/pages", {
@@ -82,7 +99,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
       const res = await fetch("/api/pages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parentId }), // title пропускаем
+        body: JSON.stringify({ parentId }),
       });
       const page = await res.json();
       if (!res.ok) throw new Error(page?.error || "Не удалось создать подстраницу");
@@ -93,7 +110,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
     }
   };
 
-  // --- Проекты (Общее/Личное/Архив) — если продолжаем их использовать ---
+  // --- Проекты (Общее/Личное/Архив) ---
   const loadProjects = async () => {
     try {
       setLoadingProjects(true);
@@ -126,7 +143,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
   );
   const archived = useMemo(() => projects.filter((p) => p.archived), [projects]);
 
-  // Создание/апсерт «Разного» для быстрой заметки
+  // Создание/апсерт «Разное» для быстрой заметки
   const ensureDefaultProject = async (): Promise<ProjectDto> => {
     const existing = projects.find((p) => p.isDefault && p.scope === "personal" && !p.archived);
     if (existing) return existing;
@@ -148,14 +165,12 @@ export default function Sidebar({ variant = "standalone" }: Props) {
   // Быстрая заметка → создаётся страница и открывается
   const createQuickNote = async () => {
     try {
-      // необязательно, но оставим совместимость (если проект нужен)
       await ensureDefaultProject().catch(() => null);
-
       const res = await fetch("/api/pages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: "", // сервер присвоит «Новая страница»
+          title: "",
           content: { blocks: [{ type: "paragraph", data: { text: "" } }] },
         }),
       });
@@ -168,7 +183,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
     }
   };
 
-  // Создать проект (если используешь секции «Общее/Личное»)
+  // ✅ ВОТ ЭТА ФУНКЦИЯ ОТСУТСТВОВАЛА — ВЕРНУЛ
   const createProject = async (scope: "personal" | "shared") => {
     try {
       const title =
@@ -205,6 +220,9 @@ export default function Sidebar({ variant = "standalone" }: Props) {
 
   return (
     <aside className={containerClass} aria-label="Боковая панель">
+      {/* Полотно поиска — монтируем здесь один раз */}
+      <SearchOverlay isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+
       {/* Верхняя строка: пользователь + «быстрая заметка» */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
@@ -212,7 +230,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
             {session?.user?.email?.[0]?.toUpperCase() || "U"}
           </div>
 
-          <div className="text-sm flex-shrink-0">
+        <div className="text-sm flex-shrink-0">
             <div className="truncate w-[160px] sd-user-email" title={session?.user?.email || ""}>
               {session?.user?.email}
             </div>
@@ -223,7 +241,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
           </div>
         </div>
 
-        {/* + Заметка (иконка + подпись, подпись скрываешь контейнер-запросом в CSS) */}
+        {/* + Заметка */}
         <button
           onClick={createQuickNote}
           className="sd-qnote flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 text-sm"
@@ -236,7 +254,11 @@ export default function Sidebar({ variant = "standalone" }: Props) {
 
       {/* Поиск / Главная / Входящие */}
       <nav className="space-y-1">
-        <button className="w-full text-left px-2 py-1 rounded hover:bg-gray-100" onClick={() => (window.location.href = "/search")}>
+        <button
+          className="w-full text-left px-2 py-1 rounded hover:bg-gray-100"
+          onClick={() => setSearchOpen(true)}
+          title="Поиск (Ctrl/Cmd + K)"
+        >
           🔎 Поиск
         </button>
         <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/">🏠 Главная</a>
