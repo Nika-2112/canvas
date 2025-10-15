@@ -6,7 +6,7 @@
  *  - Редактирование содержимого через Editor.js.
  *  - Автосохранение с дебаунсом (без лишних перерендеров).
  *  - Нормализация контента (устранение дублей блоков).
- *  - Удаление документа (кнопка рядом с заголовком).
+ *  - Удаление документа (через меню ⋯).
  *
  * Особенности реализации:
  *  - Содержимое Editor.js хранится в useRef (contentRef), чтобы не пересоздавать редактор.
@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Editor from "@/components/Editor";
-import DeletePageButton from "@/components/DeletePageButton";
+import PageActionsMenu from "@/components/PageActionsMenu"; // ← меню ⋯ вместо отдельных кнопок
 
 /** Тип данных Editor.js (минимально необходимая часть). */
 type OutputData = {
@@ -29,32 +29,16 @@ type OutputData = {
   version?: string;
 };
 
-/**
- * Сравнение объектов по JSON.
- * Достаточно для проверки идентичности соседних блоков Editor.js.
- */
 function jsonEqual(a: unknown, b: unknown): boolean {
-  try {
-    return JSON.stringify(a) === JSON.stringify(b);
-  } catch {
-    return false;
-  }
+  try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
 }
 
-/**
- * Нормализация контента Editor.js.
- *
- * Выполняет:
- *  1) Удаление «повтора всего набора» блоков: [A..Z, A..Z] -> [A..Z].
- *  2) Схлопывание подряд идущих идентичных блоков: …, A, A, B, B, … -> …, A, B, ….
- *
- * Возвращает корректную структуру OutputData.
- */
+/** Нормализация контента Editor.js: удаляем дубли наборов и подряд идущие идентичные блоки */
 function sanitizeContent(input: any): OutputData {
   const srcBlocks: any[] = Array.isArray(input?.blocks) ? input.blocks : [];
   let blocks = srcBlocks;
 
-  // (1) Полный дубль набора блоков (две одинаковые половины массива)
+  // (1) Если массив состоит из двух одинаковых половин — берём одну
   if (blocks.length >= 2 && blocks.length % 2 === 0) {
     const half = blocks.length / 2;
     const first = blocks.slice(0, half);
@@ -64,49 +48,37 @@ function sanitizeContent(input: any): OutputData {
     }
   }
 
-  // (2) Схлопывание соседних одинаковых блоков (по type + data)
+  // (2) Схлопываем подряд идущие одинаковые блоки
   const dedup: any[] = [];
   for (const b of blocks) {
     const prev = dedup[dedup.length - 1];
-    if (prev && prev.type === b.type && jsonEqual(prev.data, b.data)) {
-      continue;
-    }
+    if (prev && prev.type === b.type && jsonEqual(prev.data, b.data)) continue;
     dedup.push(b);
   }
 
-  return {
-    time: input?.time || Date.now(),
-    version: input?.version || "2.28.0",
-    blocks: dedup,
-  };
+  return { time: input?.time || Date.now(), version: input?.version || "2.28.0", blocks: dedup };
 }
 
-/**
- * Компонент страницы документа.
- */
 export default function DocumentPage() {
   const { data: session, status } = useSession();
   const params = useParams<{ id: string }>();
 
-  // Служебные состояния загрузки/ошибок.
+  // загрузка/ошибки
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
 
-  // Заголовок документа (упрощённый текстовый инпут).
+  // заголовок
   const [title, setTitle] = useState<string>("");
 
-  // Контент Editor.js храним в ref, чтобы не триггерить пересоздание редактора.
+  // Editor.js контент в ref
   const contentRef = useRef<OutputData>({ blocks: [] });
 
-  // Состояния автосохранения.
+  // автосохранение
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [hasUserEdited, setHasUserEdited] = useState<boolean>(false);
-  const [saveTick, setSaveTick] = useState<number>(0); // счётчик изменений для дебаунса
+  const [saveTick, setSaveTick] = useState<number>(0);
 
-  /**
-   * Загрузка документа по идентификатору.
-   * Выполняется после подтверждения аутентификации.
-   */
+  // Загрузка документа по id
   useEffect(() => {
     if (status !== "authenticated" || !params.id) return;
 
@@ -124,24 +96,20 @@ export default function DocumentPage() {
           return;
         }
 
-        // Заголовок.
         setTitle(data?.title || "");
 
-        // Приведение content к формату Editor.js и первичная нормализация.
+        // приводим content к Editor.js
         let initial: OutputData;
         if (typeof data?.content === "object" && data.content?.blocks) {
           initial = sanitizeContent(data.content);
         } else if (typeof data?.content === "string") {
-          initial = sanitizeContent({
-            blocks: [{ type: "paragraph", data: { text: data.content } }],
-          });
+          initial = sanitizeContent({ blocks: [{ type: "paragraph", data: { text: data.content } }] });
         } else {
           initial = { blocks: [] };
         }
 
         contentRef.current = initial;
 
-        // Сброс состояний автосохранения после загрузки.
         setHasUserEdited(false);
         setSaveState("idle");
         setLoading(false);
@@ -152,10 +120,7 @@ export default function DocumentPage() {
     })();
   }, [status, params.id]);
 
-  /**
-   * Автосохранение с дебаунсом.
-   * Запускается только после реального редактирования пользователем.
-   */
+  // Автосохранение (дебаунс)
   useEffect(() => {
     if (status !== "authenticated") return;
     if (loading) return;
@@ -165,7 +130,6 @@ export default function DocumentPage() {
       try {
         setSaveState("saving");
 
-        // Нормализация перед отправкой в БД — для защиты от накопления дублей.
         const toSave = sanitizeContent(contentRef.current);
 
         const res = await fetch(`/api/pages/${params.id}`, {
@@ -179,9 +143,7 @@ export default function DocumentPage() {
           return;
         }
 
-        // Синхронизация локального ref с фактически сохранёнными данными.
         contentRef.current = toSave;
-
         setSaveState("saved");
         setTimeout(() => setSaveState("idle"), 1200);
       } catch {
@@ -192,50 +154,33 @@ export default function DocumentPage() {
     return () => clearTimeout(timer);
   }, [saveTick, status, loading, hasUserEdited, params.id, title]);
 
-  // Состояния интерфейса.
-  if (status === "loading") {
-    return <div className="p-6 text-gray-500">Загрузка…</div>;
-  }
+  // Состояния UI
+  if (status === "loading") return <div className="p-6 text-gray-500">Загрузка…</div>;
 
   if (!session) {
     return (
       <div className="p-6">
         <h1 className="text-xl font-bold">Вы не авторизованы</h1>
-        <p>
-          <a href="/login" className="text-blue-600 underline">
-            Войдите
-          </a>, чтобы редактировать документы.
-        </p>
+        <p><a href="/login" className="text-blue-600 underline">Войдите</a>, чтобы редактировать документы.</p>
       </div>
     );
   }
 
-  if (loading) {
-    return <div className="p-6 text-gray-500">Загрузка страницы…</div>;
-  }
+  if (loading) return <div className="p-6 text-gray-500">Загрузка страницы…</div>;
 
   if (error) {
     return (
       <div className="p-6">
         <h1 className="text-xl font-bold text-red-600">Ошибка</h1>
         <p>{error}</p>
-        <p className="mt-4">
-          <a href="/" className="text-blue-600 underline">← Назад</a>
-        </p>
+        <p className="mt-4"><a href="/" className="text-blue-600 underline">← Назад</a></p>
       </div>
     );
   }
 
-  /**
-   * Основной интерфейс страницы:
-   *  - поле заголовка + кнопка удаления;
-   *  - статус сохранения;
-   *  - редактор Editor.js;
-   *  - навигация назад.
-   */
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      {/* Верхняя панель: заголовок + удаление */}
+      {/* Верхняя панель: заголовок + меню действий (⋯) */}
       <div className="flex items-center gap-3 mb-2">
         <input
           value={title}
@@ -248,14 +193,8 @@ export default function DocumentPage() {
           className="flex-1 text-3xl font-bold outline-none border-b border-gray-200 focus:border-gray-400"
         />
 
-        {/* Кнопка удаления документа с возвратом на главную */}
-        <DeletePageButton
-          pageId={String(params.id)}
-          redirectAfter={true}
-          className="px-3 py-2 border border-red-300 text-red-700 rounded hover:bg-red-50"
-        >
-          Удалить
-        </DeletePageButton>
+        {/* Меню действий: создать подстраницу / удалить страницу */}
+        <PageActionsMenu pageId={String(params.id)} />
       </div>
 
       {/* Индикатор состояния сохранения */}
@@ -265,8 +204,7 @@ export default function DocumentPage() {
         {saveState === "error" && "Ошибка сохранения"}
       </div>
 
-      {/* Редактор Editor.js
-          ВАЖНО: initialData читается однократно при монтировании EditorClient. */}
+      {/* Редактор Editor.js */}
       <Editor
         initialData={contentRef.current}
         onChange={(data) => {
@@ -278,10 +216,7 @@ export default function DocumentPage() {
 
       {/* Навигация назад */}
       <div className="mt-6">
-        <a
-          href="/"
-          className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100"
-        >
+        <a href="/" className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100">
           ← Назад к списку
         </a>
       </div>
