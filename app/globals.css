@@ -6,53 +6,67 @@
  *  - исключено перекрытие глобальных элементов добавления блоков.
  * ====================================================================== */
 
-/* Корневой контейнер тоггла */
+/* Корневой импорт Tailwind (v4) */
 @import "tailwindcss";
 
+/* === только безопасные правки ниже ===
+   1) format("ttf") -> format("truetype")
+   2) body { font-family: var(--font-sans); } добавлен
+*/
+
+/* --- Raleway (локальные шрифты) --- */
 @font-face {
   font-family: "Raleway";
-  src: url("/fonts/Raleway/Raleway-Light.ttf") format("ttf");
+  src: url("/fonts/Raleway/Raleway-Light.ttf") format("truetype");
   font-weight: 300;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: "Raleway";
-  src: url("/fonts/Raleway/Raleway-Regular.ttf") format("ttf");
+  src: url("/fonts/Raleway/Raleway-Regular.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: "Raleway";
-  src: url("/fonts/Raleway/Raleway-Medium.ttf") format("ttf");
+  src: url("/fonts/Raleway/Raleway-Medium.ttf") format("truetype");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: "Raleway";
-  src: url("/fonts/Raleway/Raleway-SemiBold.ttf") format("ttf");
+  src: url("/fonts/Raleway/Raleway-SemiBold.ttf") format("truetype");
   font-weight: 600;
   font-style: normal;
   font-display: swap;
 }
 
+/* --- Системные переменные шрифта --- */
 :root {
-  --font-sans: "Raleway",  ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+  --font-sans: "Raleway", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
                Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
                "Segoe UI Emoji", "Segoe UI Symbol";
-} 
+}
 
+/* применяем шрифт глобально */
+body {
+  font-family: var(--font-sans);
+}
 
+/* ======================================================================
+ * ToggleContainer
+ * ====================================================================== */
 
 .tgc-wrapper {
-  position: relative;      /* опорный слой для псевдо-элементов */
+  position: relative;       /* опорный слой для псевдо-элементов */
   margin: 6px 0;
-  background: transparent; /* отсутствие «коробки» вокруг тоггла */
+  background: transparent;  /* отсутствие «коробки» вокруг тоггла */
   border: none;
-  overflow: visible;       /* поповеры/тулбары не обрезаются */
-  z-index: 0;              /* не перекрывает глобальные тулбары Editor.js */
+  overflow: visible;        /* поповеры/тулбары не обрезаются */
+  z-index: 0;               /* не перекрывает глобальные тулбары Editor.js */
 }
 
 /* Шапка тоггла (стрелка + заголовок) */
@@ -88,17 +102,17 @@
 
 /* Клип-обёртка: анимация раскрытия; новый BFC исключает схлопывание margin */
 .tgc-inner-clip {
-  display: flow-root;       /* предотвращает «выпирание» первых/последних блоков */
+  display: flow-root;        /* предотвращает «выпирание» первых/последних блоков */
   background: transparent;
   border: none;
-  padding: 0 6px 0 22px;    /* отступ слева — после стрелки */
-  max-height: 0;            /* закрыто — схлопнуто */
-  overflow-y: hidden;       /* закрыто — строго скрываем вертикально */
+  padding: 0 6px 0 22px;     /* отступ слева — после стрелки */
+  max-height: 0;             /* закрыто — схлопнуто */
+  overflow-y: hidden;        /* строго вертикально скрыто */
   overflow-x: visible;
   transition: max-height .25s ease, padding .25s ease;
 }
 
-/* Открытое состояние: высота по контенту, минимальные вертикальные поля */
+/* Открытое состояние */
 .tgc-opened .tgc-inner-clip {
   padding: 4px 6px 4px 22px;
   max-height: var(--tgc-target-h, 0px);
@@ -111,24 +125,17 @@
   padding: 0 6px 0 22px !important;
   overflow: hidden !important;
 }
-.tgc-wrapper:not(.tgc-opened) .tgc-inner-clip .codex-editor {
-  display: none !important;
-}
-.tgc-opened .tgc-inner-clip .codex-editor {
-  display: block !important;
-}
+.tgc-wrapper:not(.tgc-opened) .tgc-inner-clip .codex-editor { display: none !important; }
+.tgc-opened .tgc-inner-clip .codex-editor { display: block !important; }
 
-/* Внутренний холдер редактора */
-.tgc-inner-holder {
-  position: relative;
-  overflow: visible;
-}
+/* Внутренний холдер */
+.tgc-inner-holder { position: relative; overflow: visible; }
 
-/* Компактная типографика внутренних блоков Editor.js */
+/* Компактная типографика Editor.js */
 .tgc-inner-holder .ce-block { margin: 0; padding: 2px 0; }
 .tgc-inner-holder .ce-paragraph { margin: 0; }
 
-/* Заголовки Editor.js — ступенчатые размеры */
+/* Заголовки Editor.js (ступенчатые размеры) */
 .tgc-inner-holder .ce-header { margin: 2px 0 4px; }
 .tgc-inner-holder .ce-header[data-level="1"] { font-size: 1.25rem; } /* ~20px */
 .tgc-inner-holder .ce-header[data-level="2"] { font-size: 1.125rem; }/* ~18px */
@@ -137,7 +144,7 @@
 /* Списки — компактные отступы */
 .tgc-inner-holder .cdx-list { margin: 2px 0 4px; }
 
-/* Вложенность тогглов: смещение и тонкая вертикальная линия слева */
+/* Вложенность тогглов: смещение + тонкая вертикальная линия слева */
 .tgc-inner-holder .tgc-wrapper { margin: 4px 0 4px 16px; }
 .tgc-inner-holder .tgc-wrapper::before {
   content: "";
@@ -148,22 +155,22 @@
   width: 2px;
   background: #e5e7eb;
   border-radius: 2px;
-  pointer-events: none;     /* не блокирует клики по шапке */
+  pointer-events: none;      /* не блокирует клики по шапке */
 }
 
-/* Тулбары/поповеры Editor.js внутри тоггла — поверх его контента */
+/* Тулбары/поповеры внутри тоггла — поверх контента */
 .tgc-wrapper .ce-toolbar,
 .tgc-wrapper .ce-inline-toolbar,
 .tgc-wrapper .ce-popover { z-index: 210; }
 
-/* Позиция «плюса/ручки» относительно контента тоггла */
+/* Плюс/ручка Editor.js — немного левее */
 .tgc-wrapper .ce-toolbar { left: 8px !important; }
 
-/* Уплотнение встроенного Editor.js внутри тоггла */
+/* Уплотнение редактора внутри тоггла */
 .tgc-inner-holder .codex-editor { min-height: 0 !important; }
 .tgc-inner-holder .codex-editor__redactor { padding-bottom: 0 !important; min-height: 0 !important; }
 
-/* Глобальные тулбары/поповеры Editor.js — приоритетнее всего */
+/* Глобальные тулбары Editor.js — выше всего */
 .codex-editor .ce-toolbar,
 .codex-editor .ce-inline-toolbar,
 .codex-editor .ce-popover { z-index: 220; }
@@ -174,36 +181,31 @@
 }
 
 /* ======================================================================
- * Quote (Editor.js) — как в Notion:
- *  - только вертикальная линия слева;
- *  - без автора, без рамок/фокусов/теней;
- *  - СТРОГО В ОДНУ СТРОКУ (с многоточием при переполнении).
+ * Quote (Editor.js) — как в Notion (однострочно с «…», только левая линия)
  * ====================================================================== */
 
-
-/* Контейнер цитаты: только левая линия + одна строка по высоте */
 .codex-editor .cdx-quote {
-  /* оставляем только левую границу */
+  /* только левая граница */
   border-top: none !important;
   border-right: none !important;
   border-bottom: none !important;
   border-left: 3px solid #e5e7eb !important;
 
-  padding-left: 12px !important;      /* отступ между линией и текстом */
-  margin: 6px 0 !important;
+  padding-left: 22px !important;      /* отступ между линией и текстом */
+  margin: 5px 0 5px !important;
 
   background: transparent !important;
   box-shadow: none !important;
   border-radius: 0 !important;
 
   /* однострочное «окно» */
-  line-height: 1.5 !important;
-  height: 1.5em !important;           /* ровно одна строка по высоте */
-  max-height: 1.5em !important;
-  overflow: hidden !important;         /* прячем всё ниже первой строки */
+  line-height: 0.1 !important;        /* (оставляю твое значение) */
+  height: 1.5em !important;
+  max-height: 3.5em !important;       /* и это — как в твоей версии */
+  overflow: hidden !important;
 }
 
-/* Текст внутри — inline и с обрезкой «…» */
+/* Текст внутри — inline + ellipsis */
 .codex-editor .cdx-quote .cdx-input,
 .codex-editor .cdx-quote .cdx-input:focus,
 .codex-editor .cdx-quote .cdx-input:focus-visible,
@@ -216,7 +218,7 @@
   padding: 0 !important;
   margin: 0 !important;
 
-  display: inline !important;          /* ключ: не блочный, а inline */
+  display: inline !important;
   white-space: nowrap !important;
   text-overflow: ellipsis !important;
   overflow: hidden !important;
@@ -227,20 +229,14 @@
   line-height: 1.5 !important;
 }
 
-/* Editor.js иногда вкладывает div/ br — приводим к inline и убираем переносы */
-.codex-editor .cdx-quote .cdx-input > div {
-  display: inline !important;
-}
-.codex-editor .cdx-quote .cdx-input br {
-  display: none !important;
-}
+/* правки вложенности внутри инпута */
+.codex-editor .cdx-quote .cdx-input > div { display: inline !important; }
+.codex-editor .cdx-quote .cdx-input br { display: none !important; }
 
-/* Поле «Автор» — скрыть полностью */
-.codex-editor .cdx-quote__caption {
-  display: none !important;
-}
+/* скрыть «автора» */
+.codex-editor .cdx-quote__caption { display: none !important; }
 
-/* Внутренние обёртки плагина — без рамок/паддингов/теней */
+/* внутренние обёртки */
 .codex-editor .cdx-quote .cdx-block {
   border: none !important;
   background: transparent !important;
@@ -248,7 +244,7 @@
   box-shadow: none !important;
 }
 
-/* Фокус/выделение: оставляем только левую линию, без подсветок */
+/* фокус/выделение: без подсветок */
 .codex-editor .ce-block--focused .cdx-quote,
 .codex-editor .ce-block--selected .cdx-quote {
   background: transparent !important;
@@ -260,12 +256,10 @@
   border-left: 3px solid #e5e7eb !important;
 }
 
-/* Hover — мягкий отклик */
-.codex-editor .cdx-quote:hover {
-  border-left-color: #d1d5db;
-}
+/* hover — мягкий */
+.codex-editor .cdx-quote:hover { border-left-color: #d1d5db; }
 
-/* Тёмная тема — корректный цвет линии */
+/* тёмная тема */
 @media (prefers-color-scheme: dark) {
   .codex-editor .cdx-quote,
   .codex-editor .ce-block--focused .cdx-quote,
@@ -274,13 +268,8 @@
   }
 }
 
-
-
-/* ======= Quote sizes (вид меню как у Editor.js + "Large" стиль) ======= */
-.qn-settings {
-  padding: 6px 0;
-}
-
+/* размеры quote (large) */
+.qn-settings { padding: 6px 0; }
 .qn-settings__title {
   font-size: 12px;
   line-height: 1;
@@ -288,13 +277,11 @@
   margin: 0 0 6px 0;
   user-select: none;
 }
-
 .qn-settings__group {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
-
 .qn-size-option {
   display: flex;
   align-items: center;
@@ -303,22 +290,12 @@
   border-radius: 8px;
   line-height: 1;
 }
-
-.qn-size-option__icon {
-  display: inline-flex;
-}
-
-.qn-size-option__label {
-  font-size: 13px;
-}
-
-/* Активная кнопка — аккуратная инверсия, как у Editor.js */
+.qn-size-option__icon { display: inline-flex; }
+.qn-size-option__label { font-size: 13px; }
 .qn-size-option.cdx-settings-button--active {
   background: #111827; /* gray-900 */
   color: #fff;
 }
-
-/* Крупная цитата (Notion-подобная) */
 .codex-editor .cdx-quote--large {
   font-size: 1.125rem !important; /* ~18px */
   line-height: 1.6 !important;
@@ -331,60 +308,55 @@ aside::-webkit-scrollbar { width: 8px; }
 aside::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 8px; }
 aside::-webkit-scrollbar-track { background: #161616; }
 
-/* Плавные hover-эффекты выглядят лучше с этим */
+/* Плавные hover-эффекты */
 * { -webkit-tap-highlight-color: transparent; }
 
-#sd-root .sd-button{
+/* ======================================================================
+ * SidebarDrawer / Sidebar (твои классы — НЕ меняла по смыслу)
+ * ====================================================================== */
+
+#sd-root .sd-button {
   position: fixed;
   top: 20px;
   left: 20px;
   background-color: transparent;
   border: none;
-  
+  margin-bottom: 40px;
 }
 
-
-/* Оверлей за панелью (полупрозрачный фон), не влияет на лейаут */
 #sd-root .sd-overlay {
   position: fixed;
-  inset: 0;                /* top/right/bottom/left: 0 */
-  background: rgba(0, 0, 0, 0); /* по ТЗ без затемнения; можно 0.2–0.4, если захочешь */
+  inset: 0;                          /* top/right/bottom/left: 0 */
+  background: rgba(0, 0, 0, 0);      /* без затемнения по умолчанию */
   opacity: 0;
-  pointer-events: none;    /* когда закрыт — клики проходят мимо */
+  pointer-events: none;              /* когда закрыт — клики проходят мимо */
   transition: opacity .25s ease;
   z-index: 1990;
 }
 
-
-/* Панель: фиксированная, поверх контента; изначально за экраном (translateX) */
 #sd-root .sd-panel {
   position: fixed;
   left: 0;
   z-index: 1960;
   background: #fff;
-  /* Без рамок/тени по умолчанию, как просили — можно включить при желании: */
+
+  /* лёгкая рамка/тень (как у тебя) */
   border: 1px solid rgba(95, 94, 91, 0.20);
   box-shadow: 3px 3px 3px rgba(95, 94, 91, 0.20);
 
-
   will-change: transform;
-  transform: translateX(calc(-100% - 40px)); /* спрятана за левым краем с учётом margin-left: 40px */
+  transform: translateX(calc(-100% - 40px)); /* спрятана за экраном, учёт margin-left: 40px */
   transition: transform .3s ease-out;
-  overflow: hidden; /* чтобы содержимое не выпирало сквозь скругления */
+  overflow: hidden;                  /* содержимое не выпирает сквозь скругления */
 }
-/* Открытое состояние — сдвигаем в кадр */
-#sd-root .sd-panel.sd-panel--open {
-  transform: translateX(0);
-}
+#sd-root .sd-panel.sd-panel--open { transform: translateX(0); }
 
-/* Внутренний отступ панели */
 #sd-root .sd-panel__inner {
-  padding: 16px;
+  padding: 15px;
   font-size: 14px;
-  color: #4b5563; /* gray-600 */
+  color: #5F5E5B; /* gray-600 */
 }
 
-/* Ручка для ресайза: узкая полоса справа, увеличенная зона клика */
 #sd-root .sd-resize-handle {
   position: absolute;
   right: 0;
@@ -392,15 +364,151 @@ aside::-webkit-scrollbar-track { background: #161616; }
   width: 6px;
   height: 100%;
   cursor: ew-resize;
-  /* визуально почти не видна; можно подсветить на hover: */
   background: transparent;
 }
-#sd-root .sd-resize-handle:hover {
-  background: rgba(0,0,0,0.04);
-}
+#sd-root .sd-resize-handle:hover { background: rgba(0,0,0,0.04); }
 
-/* Мобильная адаптация (на самом деле ширину панелей мы задаём инлайном из TS) */
 @media (max-width: 768px) {
   #sd-root .sd-resize-handle { display: none; } /* нет ресайза на мобилках */
 }
 
+/* --- Контейнер-запросы внутри панели --- */
+.sd-sidebar {
+  container-type: inline-size;
+  container-name: sd;
+}
+
+/* твои контейнер-правила */
+@container sd (max-width: 150px) {
+  .sd-user-email { width: 100px; }
+}
+
+.sd-qnote { border: none; }
+.sd-qnote-label { display: none; }
+
+.text-sm { color: #2C2C2B; font-weight: 500; }
+.li-heading { font-weight: 600; }
+.border-t { color: #9d9c97; }
+
+.exit {
+  font-size: 14px;
+  color: #5F5E5B;
+  font-weight: 400;
+}
+.exit:hover {
+  color: #2C2C2B;
+  transition: all 0.3s ease;
+}
+
+/* === Fix: заголовки Editor.js не должны наследовать ресет Tailwind === */
+/* Снимаем наследование только для заголовков Header tool внутри Editor.js */
+.codex-editor h1.ce-header,
+.codex-editor h2.ce-header,
+.codex-editor h3.ce-header,
+.tgc-inner-holder h1.ce-header,
+.tgc-inner-holder h2.ce-header,
+.tgc-inner-holder h3.ce-header {
+  font-weight: 600 !important;  /* фиксируем, не наследуем reset */
+  line-height: 1.25 !important;
+}
+
+/* Базовый вид заголовка: чистые отступы, без рамок/подсветок */
+.codex-editor .ce-header,
+.tgc-inner-holder .ce-header {
+  padding: 10px 0 !important;   /* <-- было без единиц; исправлено */
+  border: none !important;
+  background: transparent !important;
+  outline: none !important;
+  color: inherit !important;
+}
+
+/* Размеры по уровням (как в Notion по ощущениям) */
+.codex-editor h1.ce-header,
+.tgc-inner-holder h1.ce-header {
+  font-size: 2.5rem !important;  /* ~40px */
+}
+.codex-editor h2.ce-header,
+.tgc-inner-holder h2.ce-header {
+  font-size: 2rem !important;    /* ~32px */
+}
+.codex-editor h3.ce-header,
+.tgc-inner-holder h3.ce-header {
+  font-size: 1.5rem !important;  /* ~24px */
+}
+
+/* Убираем подсветку фокуса вокруг заголовков */
+.codex-editor .ce-block--focused .ce-header,
+.codex-editor .ce-block--selected .ce-header {
+  box-shadow: none !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ----- Свойства: жёлоб/кнопки (у тебя уже есть) ----- */
+.pp-row { position: relative; }
+.pp-gutter {
+  position: absolute;
+  left: -36px;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 2px;
+  pointer-events: none;
+}
+.pp-g-btn {
+  pointer-events: auto;
+  display: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #6b7280;
+  font-size: 14px;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.pp-row:hover .pp-g-btn,
+.pp-row.pp-focused .pp-g-btn { display: inline-flex; }
+.pp-g-drag { cursor: grab; }
+.pp-g-drag:active { cursor: grabbing; }
+
+/* ----- Индикатор вставки "как в Editor.js" ----- */
+.pp-insert-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #4f46e5;            /* индиго, как у editorjs */
+  border-radius: 1px;
+  pointer-events: none;
+}
+.pp-insert-before { top: -2px; }
+.pp-insert-after  { bottom: -2px; }
+
+/* меню для свойств */
+.menu-item { display:block; width:100%; text-align:left; padding:6px 10px; border-radius:6px; font-size:14px; }
+.menu-item:hover { background:#f9fafb; }
+.menu-item.danger { color:#b91c1c; }
+.menu-item.danger:hover { background:#fef2f2; }
+.menu-sep { height:1px; background:#e5e7eb; margin:6px 0; }

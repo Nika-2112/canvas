@@ -12,13 +12,14 @@
  *  - поиск, главная, входящие
  *  - Общее / Личное (из /api/projects)
  *  - Страницы — дерево страниц (/api/pages) с вложенностями (SidebarTree)
- *  - Архив, Корзина, Документация
+ *  - Кнопки «Архив» и «Корзина»
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import clsx from "clsx";
 import SidebarTree, { PageDto } from "@/components/SidebarTree";
+import SearchOverlay from "@/components/SearchOverlay";
 
 type ProjectDto = {
   _id: string;
@@ -42,8 +43,22 @@ export default function Sidebar({ variant = "standalone" }: Props) {
   const [error, setError] = useState("");
 
   const [pages, setPages] = useState<PageDto[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
 
-  // --- Страницы (дерево Notion-подобное) ---
+  // Ctrl/Cmd + K — открыть поиск
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const isCmdK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k";
+      if (isCmdK) {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // --- Страницы (дерево) ---
   const loadPages = async () => {
     try {
       const res = await fetch("/api/pages");
@@ -54,12 +69,11 @@ export default function Sidebar({ variant = "standalone" }: Props) {
       console.error("Ошибка соединения при загрузке страниц");
     }
   };
-
   useEffect(() => {
     loadPages();
   }, []);
 
-  // Создать корневую страницу (без title — сервер присвоит «Новая страница»)
+  // Создать корневую страницу
   const createRootPage = async () => {
     try {
       const res = await fetch("/api/pages", {
@@ -82,7 +96,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
       const res = await fetch("/api/pages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parentId }), // title пропускаем
+        body: JSON.stringify({ parentId }),
       });
       const page = await res.json();
       if (!res.ok) throw new Error(page?.error || "Не удалось создать подстраницу");
@@ -93,7 +107,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
     }
   };
 
-  // --- Проекты (Общее/Личное/Архив) — если продолжаем их использовать ---
+  // --- Проекты (если используешь) ---
   const loadProjects = async () => {
     try {
       setLoadingProjects(true);
@@ -111,7 +125,6 @@ export default function Sidebar({ variant = "standalone" }: Props) {
       setLoadingProjects(false);
     }
   };
-
   useEffect(() => {
     loadProjects();
   }, []);
@@ -124,9 +137,9 @@ export default function Sidebar({ variant = "standalone" }: Props) {
     () => projects.filter((p) => p.scope === "personal" && !p.archived),
     [projects]
   );
-  const archived = useMemo(() => projects.filter((p) => p.archived), [projects]);
+  const archivedProjects = useMemo(() => projects.filter((p) => p.archived), [projects]);
 
-  // Создание/апсерт «Разного» для быстрой заметки
+  // Создание/апсерт «Разное» для быстрой заметки
   const ensureDefaultProject = async (): Promise<ProjectDto> => {
     const existing = projects.find((p) => p.isDefault && p.scope === "personal" && !p.archived);
     if (existing) return existing;
@@ -145,17 +158,15 @@ export default function Sidebar({ variant = "standalone" }: Props) {
     return data;
   };
 
-  // Быстрая заметка → создаётся страница и открывается
+  // Быстрая заметка
   const createQuickNote = async () => {
     try {
-      // необязательно, но оставим совместимость (если проект нужен)
       await ensureDefaultProject().catch(() => null);
-
       const res = await fetch("/api/pages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: "", // сервер присвоит «Новая страница»
+          title: "",
           content: { blocks: [{ type: "paragraph", data: { text: "" } }] },
         }),
       });
@@ -168,7 +179,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
     }
   };
 
-  // Создать проект (если используешь секции «Общее/Личное»)
+  // Создать проект
   const createProject = async (scope: "personal" | "shared") => {
     try {
       const title =
@@ -184,7 +195,6 @@ export default function Sidebar({ variant = "standalone" }: Props) {
       if (!res.ok) throw new Error(project?.error || "Не удалось создать проект");
       setProjects((prev) => [project, ...prev]);
 
-      // Если API создаёт корневую страницу проекта — открываем её
       if (project?.rootPageId) {
         window.location.href = `/documents/${project.rootPageId}`;
       } else {
@@ -195,7 +205,6 @@ export default function Sidebar({ variant = "standalone" }: Props) {
     }
   };
 
-  // Классы контейнера по варианту
   const containerClass = clsx(
     "flex flex-col",
     variant === "standalone" &&
@@ -205,7 +214,10 @@ export default function Sidebar({ variant = "standalone" }: Props) {
 
   return (
     <aside className={containerClass} aria-label="Боковая панель">
-      {/* Верхняя строка: пользователь + «быстрая заметка» */}
+      {/* Полотно поиска */}
+      <SearchOverlay isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+
+      {/* Верхняя строка */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs flex-shrink-0">
@@ -223,7 +235,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
           </div>
         </div>
 
-        {/* + Заметка (иконка + подпись, подпись скрываешь контейнер-запросом в CSS) */}
+        {/* + Заметка */}
         <button
           onClick={createQuickNote}
           className="sd-qnote flex-shrink-0 inline-flex items-center gap-1 px-2 py-1 text-sm"
@@ -234,9 +246,13 @@ export default function Sidebar({ variant = "standalone" }: Props) {
         </button>
       </div>
 
-      {/* Поиск / Главная / Входящие */}
+      {/* Навигация */}
       <nav className="space-y-1">
-        <button className="w-full text-left px-2 py-1 rounded hover:bg-gray-100" onClick={() => (window.location.href = "/search")}>
+        <button
+          className="w-full text-left px-2 py-1 rounded hover:bg-gray-100"
+          onClick={() => setSearchOpen(true)}
+          title="Поиск (Ctrl/Cmd + K)"
+        >
           🔎 Поиск
         </button>
         <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/">🏠 Главная</a>
@@ -274,7 +290,6 @@ export default function Sidebar({ variant = "standalone" }: Props) {
             + Проект
           </button>
         </div>
-
         <SidebarTree pages={pages} onCreateChild={createChildPage} />
       </div>
 
@@ -297,28 +312,15 @@ export default function Sidebar({ variant = "standalone" }: Props) {
         </ul>
       </div>
 
-      {/* Архив */}
-      <div className="mb-3">
-        <div className="px-2 mb-1 text-xs uppercase tracking-wide li-heading">Архив</div>
-        <ul className="space-y-1">
-          {archived.map((p) => (
-            <li key={p._id}>
-              <a className="block px-2 py-1 rounded hover:bg-gray-100" href={`/projects/${p._id}`}>
-                🗂️ {p.title}
-              </a>
-            </li>
-          ))}
-          {archived.length === 0 && <li className="px-2">Пусто</li>}
-        </ul>
-      </div>
+      {/* Раздел быстрых ссылок снизу */}
+      <div className="mt-auto pt-2 space-y-1">
+        <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/archive" title="Архив страниц">
+          📦 Архив
+        </a>
+        <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/trash" title="Корзина">
+          🗑️ Корзина
+        </a>
 
-      {/* Корзина */}
-      <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/trash">
-        🗑️ Корзина
-      </a>
-
-      {/* Документация — внизу */}
-      <div className="mt-auto pt-2">
         <button
           className="w-full text-left px-2 py-1 rounded hover:bg-gray-100 li-heading"
           onClick={() => window.open("https://example.com/docs", "_blank")}

@@ -1,53 +1,86 @@
-/**
- * Главная страница приложения.
- *
- * Функционал:
- *  - Проверка авторизации пользователя.
- *  - Создание новой страницы (title + content).
- *  - Загрузка и отображение списка страниц текущего пользователя.
- *  - Переход к странице документа (/documents/[id]).
- *  - Удаление страницы (кнопка рядом с каждой записью).
- *  - Выход из системы.
- *
- * Примечания по реализации:
- *  - Для удаления используется переиспользуемый компонент DeletePageButton.
- *  - После удаления из списка выполняется локальная перезагрузка списка (loadPages()).
- *  - При создании допустим пустой заголовок: на бэкенде подставится "Без названия".
- */
-
+// app/page.tsx
 "use client";
 
-import { useSession, signOut } from "next-auth/react";
-import { useState, useEffect } from "react";
-import DeletePageButton from "@/components/DeletePageButton";
+/**
+ * Главная: «Обзор страниц» в виде дерева с тогглами (как в сайдбаре/Notion).
+ *
+ * Что здесь:
+ *  - Загрузка активных страниц пользователя (/api/pages).
+ *  - Построение дерева по parentId.
+ *  - Тогглы ▸/▾ для раскрытия дочерних страниц.
+ *  - Название ведёт на /documents/[id].
+ *  - Справа у каждой страницы — меню «⋯» (PageActionsMenu) с теми же действиями,
+ *    что и на странице редактора: создать подстраницу, архивировать/разархивировать,
+ *    удалить (в корзину).
+ *
+ * Чего тут НЕТ (по просьбе заказчика):
+ *  - Блока «создать страницу» (создаём через сайдбар).
+ *  - Кнопок «Обновить» и «Выйти».
+ *
+ * Замечания:
+ *  - Главное дерево стартует с корней, но допускает раскрытие детей на любой глубине.
+ *  - /api/pages уже отдаёт только «живые» страницы (archived != true, deletedAt = null).
+ */
 
-type PageItem = {
+import { useEffect, useMemo, useState } from "react";
+import PageActionsMenu from "@/components/PageActionsMenu";
+
+type PageDto = {
   _id: string;
-  title: string;
-  createdAt?: string;
-  updatedAt?: string;
-  // Поля content может не быть в ответе GET /api/pages (мы его не используем на списке).
+  title?: string;
+  parentId?: string | null;
+  // могут приходить и др. поля, но они тут не нужны
 };
 
+type Node = {
+  _id: string;
+  title: string;
+  children: Node[];
+};
+
+function buildTree(pages: PageDto[]): Node[] {
+  const byId = new Map<string, Node>();
+  const roots: Node[] = [];
+
+  // Создаём узлы
+  for (const p of pages) {
+    byId.set(p._id, {
+      _id: p._id,
+      title: (p.title || "").trim() || "Новая страница",
+      children: [],
+    });
+  }
+  // Развешиваем детей по родителям
+  for (const p of pages) {
+    const node = byId.get(p._id)!;
+    const pid = p.parentId || null;
+    if (pid && byId.has(pid)) {
+      byId.get(pid)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  return roots;
+}
+
 export default function HomePage() {
-  const { data: session, status } = useSession();
-
-  // Локальное состояние страницы.
-  const [pages, setPages] = useState<PageItem[]>([]);
-  const [title, setTitle] = useState<string>("");
-  const [content, setContent] = useState<string>("");
-  const [error, setError] = useState<string>("");
-  const [creating, setCreating] = useState<boolean>(false);
+  const [pages, setPages] = useState<PageDto[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>("");
 
-  /**
-   * Загрузка списка страниц пользователя.
-   * Возвращаем только лёгкие поля (см. серверную проекцию): _id, title, createdAt.
-   */
+  // Состояние раскрытых узлов: id -> открыт?
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+
+  const toggle = (id: string) => {
+    setOpen((m) => ({ ...m, [id]: !m[id] }));
+  };
+
+  // Загрузка активных страниц (и корней, и детей)
   const loadPages = async () => {
     setLoading(true);
     setError("");
     try {
+      // Берём все активные (не только root=1), чтобы можно было раскрывать детей
       const res = await fetch("/api/pages");
       const data = await res.json();
       if (!res.ok) {
@@ -64,217 +97,88 @@ export default function HomePage() {
     }
   };
 
-  /**
-   * Создание новой страницы.
-   * Заголовок допускается пустым — сервер подставит безопасное значение.
-   * content передаём как строку (для совместимости), можно и Editor.js JSON.
-   */
-  const createPage = async () => {
-    if (creating) return;
-    setCreating(true);
-    setError("");
-
-    try {
-      const res = await fetch("/api/pages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data?.error || "Ошибка создания страницы");
-      } else {
-        setTitle("");
-        setContent("");
-        await loadPages(); // обновить список
-      }
-    } catch {
-      setError("Ошибка соединения с сервером");
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  // Загрузка списка при успешной аутентификации.
   useEffect(() => {
-    if (status === "authenticated") {
-      loadPages();
-    }
-  }, [status]);
+    loadPages();
+  }, []);
 
-  // Служебные состояния.
-  if (status === "loading") {
-    return <div style={{ padding: 20 }}>Загрузка…</div>;
-  }
+  const tree = useMemo(() => buildTree(pages), [pages]);
 
-  if (!session) {
+  // Рекурсивный элемент дерева
+  function NodeView({ node, level }: { node: Node; level: number }) {
+    const hasChildren = node.children.length > 0;
+    const isOpen = open[node._id] ?? false;
+
     return (
-      <div style={{ padding: 20 }}>
-        <h1>Вы не авторизованы</h1>
-        <p>
-          Пожалуйста, <a href="/login">войдите</a>, чтобы работать со страницами.
-        </p>
-      </div>
+      <li>
+        <div
+          className="flex items-center gap-2 py-1.5 rounded hover:bg-gray-50"
+          style={{ paddingLeft: level * 16 }}
+        >
+          {/* Тоггл слева */}
+          {hasChildren ? (
+            <button
+              className="text-gray-500 hover:text-gray-800 px-1"
+              onClick={() => toggle(node._id)}
+              aria-label={isOpen ? "Свернуть" : "Развернуть"}
+              title={isOpen ? "Свернуть" : "Развернуть"}
+            >
+              {isOpen ? "▾" : "▸"}
+            </button>
+          ) : (
+            <span className="inline-block w-4" />
+          )}
+
+          {/* Ссылка на документ */}
+          <a
+            className="flex-1 truncate px-1 text-[15px] hover:underline"
+            href={`/documents/${node._id}`}
+            title={node.title}
+          >
+            {node.title}
+          </a>
+
+          {/* Меню действий «⋯» как в редакторе */}
+          <PageActionsMenu pageId={node._id} />
+        </div>
+
+        {/* Дети — рекурсивно */}
+        {hasChildren && isOpen && (
+          <ul className="space-y-1">
+            {node.children.map((c) => (
+              <NodeView key={c._id} node={c} level={level + 1} />
+            ))}
+          </ul>
+        )}
+      </li>
     );
   }
 
-  // Основная разметка.
   return (
-    <div style={{ padding: 20, maxWidth: 720, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-        <h1 style={{ margin: 0 }}>Главная страница</h1>
-        <div style={{ fontSize: 14, color: "#555" }}>
-          Вы вошли как {session.user?.email}
-        </div>
+    <div className="p-6 max-w-3xl mx-auto">
+      {/* Заголовок страницы */}
+      <div className="mb-3">
+        <h1 className="text-5xl font-bold m-0">Страницы</h1><br></br>
+        <p className="text-sm text-gray-500 mt-2">
+          Создавайте страницы и подстраницы через левое меню. 
+        </p><br></br><br></br>
       </div>
 
-      {/* Блок создания новой страницы */}
-      <div style={{ marginBottom: 20, padding: 16, border: "1px solid #ddd", borderRadius: 8 }}>
-        <h2 style={{ marginTop: 0 }}>Создать новую страницу</h2>
+      {/* Служебные состояния */}
+      {loading && <div className="text-gray-500">Загрузка…</div>}
+      {error && <div className="text-red-600">{error}</div>}
 
-        <input
-          type="text"
-          placeholder="Заголовок"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          style={{
-            width: "100%",
-            marginBottom: 8,
-            padding: 8,
-            border: "1px solid #ddd",
-            borderRadius: 6,
-            outline: "none",
-          }}
-        />
-
-        <textarea
-          placeholder="Содержимое (необязательно)…"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          style={{
-            width: "100%",
-            marginBottom: 8,
-            padding: 8,
-            minHeight: 80,
-            border: "1px solid #ddd",
-            borderRadius: 6,
-            outline: "none",
-          }}
-        />
-
-        <button
-          onClick={createPage}
-          disabled={creating}
-          style={{
-            padding: "8px 12px",
-            border: "1px solid #ccc",
-            borderRadius: 6,
-            background: creating ? "#f5f5f5" : "#fff",
-            cursor: creating ? "default" : "pointer",
-          }}
-        >
-          {creating ? "Создание…" : "Создать страницу"}
-        </button>
-      </div>
-
-      {/* Сообщение об ошибке, если есть */}
-      {error && (
-        <div style={{ color: "red", marginBottom: 16 }}>
-          {error}
-        </div>
+      {/* Дерево */}
+      {!loading && !error && tree.length === 0 && (
+        <div className="text-gray-600">Пока нет страниц. Создайте первую через сайдбар.</div>
       )}
 
-      {/* Список страниц */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <h2 style={{ margin: 0 }}>Ваши страницы</h2>
-        <button
-          onClick={loadPages}
-          disabled={loading}
-          style={{
-            padding: "6px 10px",
-            border: "1px solid #ccc",
-            borderRadius: 6,
-            background: loading ? "#f5f5f5" : "#fff",
-            cursor: loading ? "default" : "pointer",
-            fontSize: 13,
-          }}
-          title="Обновить список"
-        >
-          {loading ? "Обновление…" : "Обновить"}
-        </button>
-      </div>
-
-      {loading ? (
-        <div style={{ color: "#666" }}>Загрузка списка…</div>
-      ) : pages.length === 0 ? (
-        <div style={{ color: "#666" }}>Страниц пока нет.</div>
-      ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {pages.map((page) => (
-            <li
-              key={page._id}
-              style={{
-                border: "1px solid #ddd",
-                borderRadius: 8,
-                padding: 12,
-                marginBottom: 10,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-              }}
-            >
-              {/* Левая часть: ссылка и дата */}
-              <div style={{ minWidth: 0 }}>
-                <a
-                  href={`/documents/${page._id}`}
-                  style={{
-                    fontWeight: 600,
-                    textDecoration: "none",
-                    color: "#0b57d0",
-                    display: "inline-block",
-                    maxWidth: "100%",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                  title={page.title}
-                >
-                  {page.title || "Без названия"}
-                </a>
-                {page.createdAt && (
-                  <div style={{ fontSize: 12, color: "#777", marginTop: 2 }}>
-                    создано: {new Date(page.createdAt).toLocaleString()}
-                  </div>
-                )}
-              </div>
-
-              {/* Правая часть: кнопка удаления */}
-              <DeletePageButton
-                pageId={page._id}
-                onDeleted={loadPages} // после успешного удаления — перезагрузить список
-              />
-            </li>
+      {!loading && !error && tree.length > 0 && (
+        <ul className="space-y-1">
+          {tree.map((n) => (
+            <NodeView key={n._id} node={n} level={0} />
           ))}
         </ul>
       )}
-
-      {/* Кнопка выхода */}
-      <div style={{ marginTop: 20 }}>
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          style={{
-            padding: "8px 12px",
-            border: "1px solid #ccc",
-            borderRadius: 6,
-            background: "#fff",
-            cursor: "pointer",
-          }}
-        >
-          Выйти
-        </button>
-      </div>
     </div>
   );
 }
