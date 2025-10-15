@@ -12,20 +12,40 @@ export async function GET() {
   const userId = getSessionUserId(session);
   if (!userId) return NextResponse.json({ error: "Необходима авторизация" }, { status: 401 });
 
-  // авто-удаление «просроченных»
+  // авто-очистка просроченных
   const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
   await Page.deleteMany({ userId, deletedAt: { $ne: null, $lte: cutoff } });
 
-  // отдать свежую корзину
-  const items = await Page.find({ userId, deletedAt: { $ne: null, $gt: cutoff } })
+  // берём все ещё не просроченные удалённые
+  const allDeleted = await Page.find({
+    userId,
+    deletedAt: { $ne: null, $gt: cutoff },
+  })
+    .select("_id title parentId deletedAt")
     .sort({ deletedAt: -1 })
     .lean();
 
-  // добавим поле daysLeft (сколько дней до авто-удаления)
-  const withLeft = items.map((p: any) => {
-    const msLeft = RETENTION_DAYS * 24 * 60 * 60 * 1000 - (Date.now() - new Date(p.deletedAt).getTime());
-    return { ...p, daysLeft: Math.max(0, Math.ceil(msLeft / (24 * 60 * 60 * 1000))) };
+  // множество удалённых id — чтобы вычислить «корни» (у кого родитель не удалён)
+  const deletedSet = new Set(allDeleted.map((d: any) => String(d._id)));
+
+  // корень удалённого дерева = элемент, чей parentId НЕ в deletedSet
+  const roots = allDeleted.filter((d: any) => {
+    const pid = d.parentId ? String(d.parentId) : null;
+    return !pid || !deletedSet.has(pid);
   });
 
-  return NextResponse.json({ retentionDays: RETENTION_DAYS, items: withLeft });
+  const items = roots.map((d: any) => {
+    const msLeft =
+      RETENTION_DAYS * 24 * 60 * 60 * 1000 -
+      (Date.now() - new Date(d.deletedAt).getTime());
+    return {
+      _id: String(d._id),
+      title: d.title || "Без названия",
+      parentId: d.parentId ? String(d.parentId) : null,
+      deletedAt: d.deletedAt,
+      daysLeft: Math.max(0, Math.ceil(msLeft / (24 * 60 * 60 * 1000))),
+    };
+  });
+
+  return NextResponse.json({ retentionDays: RETENTION_DAYS, items });
 }

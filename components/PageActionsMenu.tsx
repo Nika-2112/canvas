@@ -2,22 +2,26 @@
 /**
  * Меню действий страницы (⋯):
  *  - Создать подстраницу
- *  - Удалить (ВСЕГДА каскадом: страница + все её подстраницы)
+ *  - Архивировать / Разархивировать
+ *  - Удалить (каскадом в корзину)
  */
-
 import { useEffect, useRef, useState, useTransition } from "react";
 
-export default function PageActionsMenu({ pageId }: { pageId: string }) {
+export default function PageActionsMenu({
+  pageId,
+  isArchived = false,
+}: {
+  pageId: string;
+  isArchived?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
+  const [archived, setArchived] = useState<boolean>(isArchived);
 
-  // закрытие по клику вне
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
@@ -27,26 +31,37 @@ export default function PageActionsMenu({ pageId }: { pageId: string }) {
     const res = await fetch("/api/pages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: "Новая страница", parentId: pageId }),
+      body: JSON.stringify({ parentId: pageId }),
     });
     const data = await res.json();
-    if (!res.ok) {
-      alert(data?.error || "Не удалось создать подстраницу");
-      return;
-    }
-    await new Promise((r) => setTimeout(r, 80)); // мягкая пауза для dev
+    if (!res.ok) return alert(data?.error || "Не удалось создать подстраницу");
     window.location.href = `/documents/${data._id}`;
   }
 
-  async function handleDeleteCascade() {
-    if (!confirm("Удалить эту страницу и ВСЕ её подстраницы? Это действие необратимо.")) return;
-    const res = await fetch(`/api/pages/${pageId}`, { method: "DELETE" }); // всегда каскад на сервере
-    if (res.ok) {
-      window.location.href = "/";
-    } else {
+  async function handleArchiveToggle() {
+    const want = !archived;
+    const res = await fetch(`/api/pages/${pageId}/archive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archived: want, cascade: true }),
+    });
+    if (!res.ok) {
       const e = await res.json().catch(() => ({}));
-      alert(e?.error || "Не удалось удалить");
+      return alert(e?.error || "Не удалось изменить архивный статус");
     }
+    setArchived(want);
+    // UX: если заархивировали — уводим на главную; если разархивировали — остаёмся
+    if (want) window.location.href = "/archive";
+  }
+
+  async function handleDeleteCascade() {
+    if (!confirm("Удалить эту страницу и ВСЕ её подстраницы в корзину?")) return;
+    const res = await fetch(`/api/pages/${pageId}`, { method: "DELETE" });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      return alert(e?.error || "Не удалось удалить");
+    }
+    window.location.href = "/trash";
   }
 
   return (
@@ -69,6 +84,13 @@ export default function PageActionsMenu({ pageId }: { pageId: string }) {
             disabled={pending}
           >
             {pending ? "Создание…" : "Создать подстраницу"}
+          </button>
+
+          <button
+            className="w-full text-left px-3 py-2 hover:bg-gray-50"
+            onClick={() => start(handleArchiveToggle)}
+          >
+            {archived ? "Разархивировать" : "Архивировать"}
           </button>
 
           <div className="my-1 border-t" />

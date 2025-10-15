@@ -48,7 +48,7 @@ export default function HomePage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/pages");
+      const res = await fetch("/api/pages?root=1"); 
       const data = await res.json();
       if (!res.ok) {
         setPages([]);

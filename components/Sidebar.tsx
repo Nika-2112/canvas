@@ -44,6 +44,9 @@ export default function Sidebar({ variant = "standalone" }: Props) {
 
   const [pages, setPages] = useState<PageDto[]>([]);
 
+  const [archivedPages, setArchivedPages] = useState<{_id:string; title:string;}[]>([]);
+
+
   // 🔎 состояние для полотна поиска
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -59,6 +62,37 @@ export default function Sidebar({ variant = "standalone" }: Props) {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
+
+
+
+
+
+const loadArchivedPages = async () => {
+  try {
+    const res = await fetch("/api/archive");
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("Ошибка загрузки архива:", res.status, err?.error || res.statusText);
+      return; // не падаем в catch, просто покажем "Пусто"
+    }
+    const data = await res.json();
+    setArchivedPages(
+      (Array.isArray(data) ? data : []).map((p: any) => ({
+        _id: String(p._id),
+        title: p.title || "Без названия",
+      }))
+    );
+  } catch (e) {
+    console.error("Ошибка сети при загрузке архива");
+  }
+};
+useEffect(() => {
+  loadArchivedPages();
+}, []);
+
+
+
+
 
   // --- Страницы (дерево Notion-подобное) ---
   const loadPages = async () => {
@@ -319,20 +353,22 @@ export default function Sidebar({ variant = "standalone" }: Props) {
         </ul>
       </div>
 
-      {/* Архив */}
+
+      {/* Архив страниц */}
       <div className="mb-3">
         <div className="px-2 mb-1 text-xs uppercase tracking-wide li-heading">Архив</div>
         <ul className="space-y-1">
-          {archived.map((p) => (
+          {archivedPages.length === 0 && <li className="px-2 text-sm text-gray-500">Пусто</li>}
+          {archivedPages.map((p) => (
             <li key={p._id}>
-              <a className="block px-2 py-1 rounded hover:bg-gray-100" href={`/projects/${p._id}`}>
-                🗂️ {p.title}
+              <a className="block px-2 py-1 rounded hover:bg-gray-100" href={`/documents/${p._id}`}>
+                📄 {p.title}
               </a>
             </li>
           ))}
-          {archived.length === 0 && <li className="px-2">Пусто</li>}
         </ul>
       </div>
+
 
       {/* Корзина */}
       <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/trash">
