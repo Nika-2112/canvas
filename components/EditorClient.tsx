@@ -14,15 +14,17 @@
  *     после получения структурированных данных (OutputData) методом editor.save().
  */
 
+
+
+/**
+ * Без изменений по API. Напоминание:
+ * • Автосейв контента должен вызывать ТОЛЬКО PUT /api/pages/:id с { content }, без properties.
+ *   Свойства теперь живут и сохраняются отдельно (см. PageProperties).
+ */
 import { useEffect, useRef } from "react";
 import type { OutputData } from "@editorjs/editorjs";
 
-type Props = {
-  /** Данные для первичной инициализации Editor.js (формат OutputData). */
-  initialData: OutputData;
-  /** Колбэк, вызываемый при изменении содержимого редактора. */
-  onChange: (data: OutputData) => void;
-};
+type Props = { initialData: OutputData; onChange: (data: OutputData) => void };
 
 /**
  * Вьювер-блок подстраницы (child_page) для Editor.js.

@@ -1,9 +1,14 @@
+// /canvas/components/TagsPicker.tsx
 "use client";
 
 /**
- * Простой мультиселект тегов (предустановленный список).
- * При клике — сразу PATCH в API и локальное обновление.
+ * Мультиселект тегов.
+ *
+ * Изменения (для диплома):
+ * • РАНЬШЕ: PATCH шёл в /api/pages/:id/tags и писал top-level поле tags (которого нет в схеме Page).
+ * • ТЕПЕРЬ: PATCH идёт в /api/pages/tags?id=:pageId и обновляет свойство type="tags" в массиве properties (см. backend).
  */
+
 import { useEffect, useState } from "react";
 
 const PRESET_TAGS = ["Локация", "Логистика", "Маркетинг", "Бюджет", "Партнёры", "Сценарий"];
@@ -15,19 +20,25 @@ export default function TagsPicker({
 }: {
   pageId: string;
   value: string[];
-  onChange: () => void;
+  onChange: (next: string[]) => void;
 }) {
   const [tags, setTags] = useState<string[]>(value);
   useEffect(() => setTags(value), [value]);
 
-  function toggle(tag: string) {
+  async function toggle(tag: string) {
     const next = tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag];
-    setTags(next);
-    fetch(`/api/pages/${pageId}/tags`, {
+    setTags(next); // оптимистичный апдейт
+
+    // новый маршрут: /api/pages/tags?id=<pageId>
+    await fetch(`/api/pages/tags?id=${encodeURIComponent(pageId)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tags: next }),
-    }).then(() => onChange());
+    }).catch(() => {
+      // при ошибке можно вернуть старое значение, если нужно
+    });
+
+    onChange(next);
   }
 
   return (
