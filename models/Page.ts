@@ -1,14 +1,13 @@
 /**
- * models/Page.ts
- * Модель Page — базовая сущность контента пользователя (аналог страницы Notion).
- *
- * Добавлено:
- *  - parentId: ссылка на родительскую страницу (null = корень). Обеспечивает иерархию.
- *  - tags: массив текстовых меток для упрощённой классификации (фильтры в UI).
- *
- * Обоснование (для диплома):
- *  - Иерархия страниц формирует структуру «проектов» как вложенных разделов.
- *  - Простые теги на уровне страницы позволяют группировать подстраницы (логистика, маркетинг и т.п.).
+ * Модель Page — страница/документ пользователя.
+ * Поля:
+ *  - userId     : владелец
+ *  - title      : заголовок
+ *  - content    : Editor.js OutputData (Mixed)
+ *  - parentId   : ссылка на родителя (для иерархии Notion-подобных страниц)
+ *  - projectId  : (опц.) привязка к проекту/книге
+ *  - archived   : признак архива (не показываем в обычном списке/дереве)
+ *  - deletedAt  : дата мягкого удаления (попала в корзину). Через 7 дней можно удалять навсегда.
  */
 
 import mongoose, { Schema, InferSchemaType, models } from "mongoose";
@@ -17,26 +16,27 @@ const PageSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
 
-    title: { type: String, required: true, trim: true },
+    title: { type: String, required: true, trim: true, default: "Новая страница" },
 
-    // content: допускаем как строку (исторически), так и Editor.js JSON (Mixed)
-    content: { type: Schema.Types.Mixed, required: true },
+    content: {
+      type: Schema.Types.Mixed,
+      required: true,
+      default: () => ({ time: Date.now(), version: "2.31.0", blocks: [] }),
+    },
 
-    // Привязка к «книге/проекту» (если используется разделение по workspace)
+
+    // иерархия
+    parentId: { type: Schema.Types.ObjectId, ref: "Page", required: false, index: true, default: null },
+
+    // опциональная связь со «старым» Project (если используете)
     projectId: { type: Schema.Types.ObjectId, ref: "Project", required: false, index: true },
 
-    // НОВОЕ: родительская страница (null => корневая страница)
-    parentId: { type: Schema.Types.ObjectId, ref: "Page", required: false, default: null, index: true },
-
-    // НОВОЕ: произвольные теги (используются в табличном виде подстраниц)
-    tags: { type: [String], default: [] },
+    // архив/корзина
+    archived: { type: Boolean, default: false, index: true },
+    deletedAt: { type: Date, default: null, index: true },
   },
   { timestamps: true }
 );
-
-// Индексы для эффективных выборок «детей» и по тегам
-PageSchema.index({ parentId: 1, createdAt: 1 });
-PageSchema.index({ tags: 1 });
 
 export type Page = InferSchemaType<typeof PageSchema>;
 export const Page = models.Page || mongoose.model("Page", PageSchema);

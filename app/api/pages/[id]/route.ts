@@ -1,10 +1,8 @@
 /**
- * API /api/pages/:id
- *
- * Упрощение: удаление ВСЕГДА каскадное (страница + все подстраницы).
- * Дополнительно:
- *  - Перед отдачей родителя (GET) синхронизируем его child_page-блоки с реальными детьми,
- *    чтобы у родителя всегда отображались все подстраницы.
+ * /api/pages/:id
+ * - GET    : вернуть страницу + синхронизация child_page у родителя
+ * - PUT    : обновить
+ * - DELETE : мягкое удаление (в корзину) каскадом; ?force=1 — удалить навсегда каскадом
  */
 
 import { NextResponse } from "next/server";
@@ -13,7 +11,6 @@ import { Page } from "@/models/Page";
 import { getSession } from "@/lib/auth";
 import { getSessionUserId } from "@/lib/session-user";
 
-/** Тайпгард: params может быть объектом или Promise (разные версии Next) */
 function isPromise<T = unknown>(v: unknown): v is Promise<T> {
   return !!v && typeof (v as any).then === "function";
 }
@@ -26,73 +23,72 @@ async function getIdParam(
 
 function normalizeEditorContent(raw: any) {
   if (!raw || typeof raw !== "object" || !Array.isArray(raw.blocks)) {
-    return { time: Date.now(), version: "2.31.0", blocks: [] };
+    return { time: Date.now(), version: "2.31.0", blocks: [] as any[] };
   }
   return raw;
 }
 
-/** Единая проверка владельца и загрузка страницы */
-async function loadOwnedPage(pageId: string) {
+async function loadOwned(pageId: string) {
   await connectDB();
   const session = await getSession();
-  const sessionUserId = getSessionUserId(session);
-  if (!sessionUserId) {
-    return { error: NextResponse.json({ error: "Необходима авторизация" }, { status: 401 }) };
-  }
+  const userId = getSessionUserId(session);
+  if (!userId) return { error: NextResponse.json({ error: "Необходима авторизация" }, { status: 401 }) };
   const page = await Page.findById(pageId);
   if (!page) return { error: NextResponse.json({ error: "Страница не найдена" }, { status: 404 }) };
-  if (String(page.userId) !== String(sessionUserId)) {
-    return { error: NextResponse.json({ error: "Доступ запрещён" }, { status: 403 }) };
-  }
-  return { page, sessionUserId };
+  if (String(page.userId) !== String(userId)) return { error: NextResponse.json({ error: "Доступ запрещён" }, { status: 403 }) };
+  return { page, userId };
 }
 
-/** Удалить ссылку child_page на childId из контента parent (если есть) */
 async function removeChildLinkFromParent(parentId: string, childId: string, ownerId: string) {
   const parent = await Page.findOne({ _id: parentId, userId: ownerId });
   if (!parent) return;
   const content = normalizeEditorContent(parent.content);
-  const before = content.blocks.length;
-  content.blocks = content.blocks.filter(
+  const before = (content.blocks as any[]).length;
+  content.blocks = (content.blocks as any[]).filter(
     (b: any) => !(b?.type === "child_page" && String(b?.data?.refId) === String(childId))
   );
-  if (content.blocks.length !== before) {
+  if ((content.blocks as any[]).length !== before) {
     parent.content = content;
     await parent.save();
   }
 }
 
-/** Синхронизация child_page-блоков у родителя с реальными детьми */
 async function syncChildLinks(parentId: string, ownerId: string) {
   const parent = await Page.findOne({ _id: parentId, userId: ownerId });
   if (!parent) return;
 
   const content = normalizeEditorContent(parent.content);
-  const children = await Page.find({ parentId: parentId, userId: ownerId }).select("_id").lean();
-  const childIds = new Set(children.map((c) => String(c._id)));
+    const children = await Page.find({
+      parentId,
+      userId: ownerId,
+      archived: { $ne: true },   // 🔧 правка
+      deletedAt: null,
+    })
+      .select("_id")
+      .lean();
 
-  const blocks = content.blocks as any[];
 
-  // убрать «битые» ссылки
-  const filtered = blocks.filter((b) => {
+
+  const childSet = new Set(children.map((c) => String((c as any)._id)));
+
+  const origBlocks: any[] = Array.isArray(content.blocks) ? (content.blocks as any[]) : [];
+  const filtered: any[] = origBlocks.filter((b: any) => {
     if (b?.type !== "child_page") return true;
-    const ref = String(b?.data?.refId || "");
-    return childIds.has(ref);
+    return childSet.has(String(b?.data?.refId || ""));
   });
 
-  // уже имеющиеся ссылки
-  const existingRefs = new Set(
-    filtered.filter((b) => b?.type === "child_page").map((b) => String(b.data.refId))
+  const existing = new Set(
+    filtered.filter((b: any) => b?.type === "child_page").map((b: any) => String(b.data.refId))
   );
 
-  // добавить недостающие ссылки (в конец)
   for (const c of children) {
-    const id = String(c._id);
-    if (!existingRefs.has(id)) filtered.push({ type: "child_page", data: { refId: id } });
+    const id = String((c as any)._id);
+    if (!existing.has(id)) filtered.push({ type: "child_page", data: { refId: id } });
   }
 
+  // 👇 здесь были implicit any — типизируем параметры колбэка
   const changed =
-    filtered.length !== blocks.length || filtered.some((b, i) => b !== blocks[i]);
+    filtered.length !== origBlocks.length || filtered.some((b: any, i: number) => b !== origBlocks[i]);
 
   if (changed) {
     parent.content = { ...content, blocks: filtered };
@@ -100,26 +96,21 @@ async function syncChildLinks(parentId: string, ownerId: string) {
   }
 }
 
-/** Собрать всех потомков (вглубь) текущей страницы */
 async function collectDescendants(rootId: string, ownerId: string): Promise<string[]> {
-  const queue = [rootId];
-  const all: Set<string> = new Set();
-
+  const queue: string[] = [rootId];
+  const out = new Set<string>();
   while (queue.length) {
-    const current = queue.shift()!;
-    const kids = await Page.find({ parentId: current, userId: ownerId })
-      .select("_id")
-      .lean();
+    const cur = queue.shift() as string;
+    const kids = await Page.find({ parentId: cur, userId: ownerId }).select("_id").lean();
     for (const k of kids) {
-      const id = String(k._id);
-      if (!all.has(id)) {
-        all.add(id);
+      const id = String((k as any)._id);
+      if (!out.has(id)) {
+        out.add(id);
         queue.push(id);
       }
     }
   }
-  // не включаем rootId — он удалится отдельно
-  return Array.from(all);
+  return Array.from(out);
 }
 
 // -------------------- GET --------------------
@@ -128,11 +119,12 @@ export async function GET(
   context: { params: { id: string } } | { params: Promise<{ id: string }> }
 ) {
   const id = await getIdParam(context);
-  const loaded = await loadOwnedPage(id);
+  const loaded = await loadOwned(id);
   if ("error" in loaded) return loaded.error;
 
-  // лечим «на родителе видна только одна подстраница»
-  await syncChildLinks(id, loaded.sessionUserId);
+  if (loaded.page.parentId) {
+    await syncChildLinks(String(loaded.page.parentId), loaded.userId);
+  }
 
   const fresh = await Page.findById(id);
   return NextResponse.json(fresh);
@@ -144,7 +136,7 @@ export async function PUT(
   context: { params: { id: string } } | { params: Promise<{ id: string }> }
 ) {
   const id = await getIdParam(context);
-  const loaded = await loadOwnedPage(id);
+  const loaded = await loadOwned(id);
   if ("error" in loaded) return loaded.error;
 
   try {
@@ -154,36 +146,41 @@ export async function PUT(
     await loaded.page.save();
     return NextResponse.json(loaded.page);
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err?.message || "Ошибка при обновлении страницы" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err?.message || "Ошибка при обновлении страницы" }, { status: 500 });
   }
 }
 
-// -------------------- DELETE (ВСЕГДА КАСКАД) --------------------
+// -------------------- DELETE --------------------
+// Мягкое удаление каскадом (корзина); ?force=1 — удалить навсегда каскадом
 export async function DELETE(
-  _req: Request,
+  req: Request,
   context: { params: { id: string } } | { params: Promise<{ id: string }> }
 ) {
   const id = await getIdParam(context);
-  const loaded = await loadOwnedPage(id);
+  const loaded = await loadOwned(id);
   if ("error" in loaded) return loaded.error;
 
-  // запомним родителя, чтобы убрать ссылку
+  const url = new URL(req.url);
+  const force = url.searchParams.get("force") === "1";
+
   const parentId = loaded.page.parentId ? String(loaded.page.parentId) : null;
+  const all = await collectDescendants(id, loaded.userId);
+  const ids = [id, ...all];
 
-  // соберём всех потомков (дети, внуки, …)
-  const descendants = await collectDescendants(id, loaded.sessionUserId);
-  const idsToDelete = [id, ...descendants];
-
-  await Page.deleteMany({ _id: { $in: idsToDelete }, userId: loaded.sessionUserId });
-
-  // у родителя (если есть) убираем ссылку на удалённого ребёнка и синхронизируем
-  if (parentId) {
-    await removeChildLinkFromParent(parentId, id, loaded.sessionUserId);
-    await syncChildLinks(parentId, loaded.sessionUserId);
+  if (force) {
+    await Page.deleteMany({ _id: { $in: ids }, userId: loaded.userId });
+  } else {
+    const now = new Date();
+    await Page.updateMany(
+      { _id: { $in: ids }, userId: loaded.userId },
+      { $set: { deletedAt: now } }
+    );
   }
 
-  return NextResponse.json({ success: true, deleted: idsToDelete.length });
+  if (parentId) {
+    await removeChildLinkFromParent(parentId, id, loaded.userId);
+    await syncChildLinks(parentId, loaded.userId);
+  }
+
+  return NextResponse.json({ success: true, deleted: ids.length, permanent: force });
 }
