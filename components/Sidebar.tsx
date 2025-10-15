@@ -12,7 +12,7 @@
  *  - поиск, главная, входящие
  *  - Общее / Личное (из /api/projects)
  *  - Страницы — дерево страниц (/api/pages) с вложенностями (SidebarTree)
- *  - Архив, Корзина, Документация
+ *  - Кнопки «Архив» и «Корзина»
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -43,14 +43,9 @@ export default function Sidebar({ variant = "standalone" }: Props) {
   const [error, setError] = useState("");
 
   const [pages, setPages] = useState<PageDto[]>([]);
-
-  const [archivedPages, setArchivedPages] = useState<{_id:string; title:string;}[]>([]);
-
-
-  // 🔎 состояние для полотна поиска
   const [searchOpen, setSearchOpen] = useState(false);
 
-  // Глобальный шорткат Ctrl/Cmd + K — открыть поиск
+  // Ctrl/Cmd + K — открыть поиск
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const isCmdK = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k";
@@ -63,38 +58,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-
-
-
-
-const loadArchivedPages = async () => {
-  try {
-    const res = await fetch("/api/archive");
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.error("Ошибка загрузки архива:", res.status, err?.error || res.statusText);
-      return; // не падаем в catch, просто покажем "Пусто"
-    }
-    const data = await res.json();
-    setArchivedPages(
-      (Array.isArray(data) ? data : []).map((p: any) => ({
-        _id: String(p._id),
-        title: p.title || "Без названия",
-      }))
-    );
-  } catch (e) {
-    console.error("Ошибка сети при загрузке архива");
-  }
-};
-useEffect(() => {
-  loadArchivedPages();
-}, []);
-
-
-
-
-
-  // --- Страницы (дерево Notion-подобное) ---
+  // --- Страницы (дерево) ---
   const loadPages = async () => {
     try {
       const res = await fetch("/api/pages");
@@ -105,7 +69,6 @@ useEffect(() => {
       console.error("Ошибка соединения при загрузке страниц");
     }
   };
-
   useEffect(() => {
     loadPages();
   }, []);
@@ -144,7 +107,7 @@ useEffect(() => {
     }
   };
 
-  // --- Проекты (Общее/Личное/Архив) ---
+  // --- Проекты (если используешь) ---
   const loadProjects = async () => {
     try {
       setLoadingProjects(true);
@@ -162,7 +125,6 @@ useEffect(() => {
       setLoadingProjects(false);
     }
   };
-
   useEffect(() => {
     loadProjects();
   }, []);
@@ -175,7 +137,7 @@ useEffect(() => {
     () => projects.filter((p) => p.scope === "personal" && !p.archived),
     [projects]
   );
-  const archived = useMemo(() => projects.filter((p) => p.archived), [projects]);
+  const archivedProjects = useMemo(() => projects.filter((p) => p.archived), [projects]);
 
   // Создание/апсерт «Разное» для быстрой заметки
   const ensureDefaultProject = async (): Promise<ProjectDto> => {
@@ -196,7 +158,7 @@ useEffect(() => {
     return data;
   };
 
-  // Быстрая заметка → создаётся страница и открывается
+  // Быстрая заметка
   const createQuickNote = async () => {
     try {
       await ensureDefaultProject().catch(() => null);
@@ -217,7 +179,7 @@ useEffect(() => {
     }
   };
 
-  // ✅ ВОТ ЭТА ФУНКЦИЯ ОТСУТСТВОВАЛА — ВЕРНУЛ
+  // Создать проект
   const createProject = async (scope: "personal" | "shared") => {
     try {
       const title =
@@ -233,7 +195,6 @@ useEffect(() => {
       if (!res.ok) throw new Error(project?.error || "Не удалось создать проект");
       setProjects((prev) => [project, ...prev]);
 
-      // Если API создаёт корневую страницу проекта — открываем её
       if (project?.rootPageId) {
         window.location.href = `/documents/${project.rootPageId}`;
       } else {
@@ -244,7 +205,6 @@ useEffect(() => {
     }
   };
 
-  // Классы контейнера по варианту
   const containerClass = clsx(
     "flex flex-col",
     variant === "standalone" &&
@@ -254,17 +214,17 @@ useEffect(() => {
 
   return (
     <aside className={containerClass} aria-label="Боковая панель">
-      {/* Полотно поиска — монтируем здесь один раз */}
+      {/* Полотно поиска */}
       <SearchOverlay isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
 
-      {/* Верхняя строка: пользователь + «быстрая заметка» */}
+      {/* Верхняя строка */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs flex-shrink-0">
             {session?.user?.email?.[0]?.toUpperCase() || "U"}
           </div>
 
-        <div className="text-sm flex-shrink-0">
+          <div className="text-sm flex-shrink-0">
             <div className="truncate w-[160px] sd-user-email" title={session?.user?.email || ""}>
               {session?.user?.email}
             </div>
@@ -286,7 +246,7 @@ useEffect(() => {
         </button>
       </div>
 
-      {/* Поиск / Главная / Входящие */}
+      {/* Навигация */}
       <nav className="space-y-1">
         <button
           className="w-full text-left px-2 py-1 rounded hover:bg-gray-100"
@@ -330,7 +290,6 @@ useEffect(() => {
             + Проект
           </button>
         </div>
-
         <SidebarTree pages={pages} onCreateChild={createChildPage} />
       </div>
 
@@ -353,30 +312,15 @@ useEffect(() => {
         </ul>
       </div>
 
+      {/* Раздел быстрых ссылок снизу */}
+      <div className="mt-auto pt-2 space-y-1">
+        <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/archive" title="Архив страниц">
+          📦 Архив
+        </a>
+        <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/trash" title="Корзина">
+          🗑️ Корзина
+        </a>
 
-      {/* Архив страниц */}
-      <div className="mb-3">
-        <div className="px-2 mb-1 text-xs uppercase tracking-wide li-heading">Архив</div>
-        <ul className="space-y-1">
-          {archivedPages.length === 0 && <li className="px-2 text-sm text-gray-500">Пусто</li>}
-          {archivedPages.map((p) => (
-            <li key={p._id}>
-              <a className="block px-2 py-1 rounded hover:bg-gray-100" href={`/documents/${p._id}`}>
-                📄 {p.title}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-
-      {/* Корзина */}
-      <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/trash">
-        🗑️ Корзина
-      </a>
-
-      {/* Документация — внизу */}
-      <div className="mt-auto pt-2">
         <button
           className="w-full text-left px-2 py-1 rounded hover:bg-gray-100 li-heading"
           onClick={() => window.open("https://example.com/docs", "_blank")}

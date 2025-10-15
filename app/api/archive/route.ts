@@ -10,14 +10,18 @@ export async function GET() {
   const userId = getSessionUserId(session);
   if (!userId) return NextResponse.json({ error: "Необходима авторизация" }, { status: 401 });
 
+  // отдаём ВСЕ заархивированные страницы (не удалённые), включая детей
   const items = await Page.find({ userId, archived: true, deletedAt: null })
-    .select("_id title updatedAt")
+    .select("_id title parentId updatedAt")
     .sort({ updatedAt: -1 })
     .lean();
 
-  return NextResponse.json(items.map((p: any) => ({
-    _id: String(p._id),
-    title: p.title || "Без названия",
-    updatedAt: p.updatedAt,
-  })));
+  return NextResponse.json(
+    items.map((p: any) => ({
+      _id: String(p._id),
+      title: p.title || "Без названия",
+      parentId: p.parentId ? String(p.parentId) : null,
+      updatedAt: p.updatedAt,
+    }))
+  );
 }
