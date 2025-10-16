@@ -36,7 +36,24 @@ type Props = {
 };
 
 export default function Sidebar({ variant = "standalone" }: Props) {
-  const { data: session } = useSession();
+    const { data: session } = useSession();
+
+
+  
+    // имя для отображения
+const email = session?.user?.email || "";
+const name =
+  (session?.user as any)?.name // если проброшено из NextAuth
+  || (email ? email.split("@")[0] : ""); // мягкий фолбэк
+const initial = (name || email || "U").trim().charAt(0).toUpperCase();
+
+
+  
+  
+  const userRole = (session?.user as any)?.role as "admin" | "editor" | "guest" | undefined;
+  const isAdmin = userRole === "admin";
+
+
 
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [projects, setProjects] = useState<ProjectDto[]>([]);
@@ -59,19 +76,21 @@ export default function Sidebar({ variant = "standalone" }: Props) {
   }, []);
 
   // --- Страницы (дерево) ---
-  const loadPages = async () => {
-    try {
-      const res = await fetch("/api/pages");
-      const data = await res.json();
-      if (res.ok) setPages(data);
-      else console.error(data?.error || "Ошибка загрузки страниц");
-    } catch {
-      console.error("Ошибка соединения при загрузке страниц");
+const loadPages = async () => {
+  try {
+    const res = await fetch("/api/pages");
+    if (!res.ok) {
+      if (res.status === 401) return; // не залогинен — тихо выходим
+      const data = await res.json().catch(() => null);
+      console.error(data?.error || "Ошибка загрузки страниц");
+      return;
     }
-  };
-  useEffect(() => {
-    loadPages();
-  }, []);
+    const data = await res.json();
+    setPages(data);
+  } catch {
+    console.error("Ошибка соединения при загрузке страниц");
+  }
+};
 
   // Создать корневую страницу
   const createRootPage = async () => {
@@ -109,25 +128,25 @@ export default function Sidebar({ variant = "standalone" }: Props) {
 
   // --- Проекты (если используешь) ---
   const loadProjects = async () => {
-    try {
-      setLoadingProjects(true);
-      const res = await fetch("/api/projects");
-      const data = await res.json();
-      if (res.ok) {
-        setProjects(data);
-        setError("");
-      } else {
-        setError(data?.error || "Ошибка загрузки проектов");
-      }
-    } catch {
-      setError("Ошибка соединения с сервером");
-    } finally {
+  try {
+    setLoadingProjects(true);
+    const res = await fetch("/api/projects");
+    if (!res.ok) {
+      if (res.status === 401) { setLoadingProjects(false); return; }
+      const data = await res.json().catch(() => null);
+      setError(data?.error || "Ошибка загрузки проектов");
       setLoadingProjects(false);
+      return;
     }
-  };
-  useEffect(() => {
-    loadProjects();
-  }, []);
+    const data = await res.json();
+    setProjects(data);
+    setError("");
+  } catch {
+    setError("Ошибка соединения с сервером");
+  } finally {
+    setLoadingProjects(false);
+  }
+};
 
   const shared = useMemo(
     () => projects.filter((p) => p.scope === "shared" && !p.archived),
@@ -213,6 +232,10 @@ export default function Sidebar({ variant = "standalone" }: Props) {
   );
 
   return (
+
+
+
+    
     <aside className={containerClass} aria-label="Боковая панель">
       {/* Полотно поиска */}
       <SearchOverlay isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
@@ -221,15 +244,31 @@ export default function Sidebar({ variant = "standalone" }: Props) {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs flex-shrink-0">
-            {session?.user?.email?.[0]?.toUpperCase() || "U"}
+            {
+              (session?.user?.username?.[0] ||
+                session?.user?.name?.[0] ||
+                "U"
+              ).toUpperCase()
+            }
           </div>
 
           <div className="text-sm flex-shrink-0">
-            <div className="truncate w-[160px] sd-user-email" title={session?.user?.email || ""}>
-              {session?.user?.email}
+            <div
+              className="truncate w-[160px] sd-user-email"
+              title={session?.user?.username || session?.user?.name || ""}
+            >
+              {session?.user?.username || session?.user?.name || "Пользователь"}
             </div>
 
-            <button className="exit hover:underline" onClick={() => signOut({ callbackUrl: "/login" })}>
+            {/* Роль вместо email */}
+            <div className="text-[12px] text-gray-500">
+              {session?.user?.role === "admin" ? "Админ" : "Редактор"}
+            </div>
+
+            <button
+              className="exit hover:underline"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+            >
               Выйти
             </button>
           </div>
@@ -246,8 +285,23 @@ export default function Sidebar({ variant = "standalone" }: Props) {
         </button>
       </div>
 
+
+
       {/* Навигация */}
+
       <nav className="space-y-1">
+
+        {/* 👥 Админский пункт — только для admin */}
+        {isAdmin && (
+          <a
+            href="/admin/users"
+            className="block px-2 py-1 rounded hover:bg-gray-100"
+            title="Управление пользователями"
+          >
+            👥 Пользователи
+          </a>
+        )}
+
         <button
           className="w-full text-left px-2 py-1 rounded hover:bg-gray-100"
           onClick={() => setSearchOpen(true)}
@@ -255,6 +309,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
         >
           🔎 Поиск
         </button>
+
         <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/">🏠 Главная</a>
         <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/inbox">📥 Входящие</a>
       </nav>
