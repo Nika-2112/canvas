@@ -1,11 +1,16 @@
+// components/PageActionsMenu.tsx
 "use client";
 /**
  * Меню действий страницы (⋯):
  *  - Создать подстраницу
+ *  - Добавить участников
  *  - Архивировать / Разархивировать
  *  - Удалить (каскадом в корзину)
  */
 import { useEffect, useRef, useState, useTransition } from "react";
+import AddMembersModal from "@/components/AddMembersModal";
+import { useSession } from "next-auth/react";
+
 
 export default function PageActionsMenu({
   pageId,
@@ -18,6 +23,12 @@ export default function PageActionsMenu({
   const [pending, start] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
   const [archived, setArchived] = useState<boolean>(isArchived);
+  const { data: session } = useSession();
+  const userRole = (session?.user as any)?.role as "admin" | "editor" | "guest" | undefined;
+  const isAdmin = userRole === "admin";
+
+  // ⬇️ состояние для модалки «Добавить участников»
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -86,6 +97,19 @@ export default function PageActionsMenu({
             {pending ? "Создание…" : "Создать подстраницу"}
           </button>
 
+          {/* 👥 пункт меню: открыть модалку приглашения */}
+        {isAdmin && (
+          <button
+            className="block w-full text-left px-3 py-2 hover:bg-gray-50"
+            onClick={() => {
+              setInviteOpen(true);
+              setOpen(false); // закрыть меню, чтобы не мешало
+            }}
+          >
+            Добавить участников
+          </button>
+        )}
+
           <button
             className="w-full text-left px-3 py-2 hover:bg-gray-50"
             onClick={() => start(handleArchiveToggle)}
@@ -102,6 +126,21 @@ export default function PageActionsMenu({
             Удалить
           </button>
         </div>
+      )}
+
+      {/* ⬇️ САМА МОДАЛКА */}
+      {inviteOpen && (
+        <AddMembersModal
+          pageId={pageId}
+          onClose={() => setInviteOpen(false)}
+          onChanged={() => {
+            setInviteOpen(false);
+            // уведомим сайдбар обновить раздел «Общее»
+            try {
+              window.dispatchEvent(new CustomEvent("shared-pages-changed"));
+            } catch {}
+          }}
+        />
       )}
     </div>
   );

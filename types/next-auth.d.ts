@@ -1,18 +1,28 @@
-/**
- * Расширение типов NextAuth для добавления поля `id` в объект `user`.
- * Это нужно, чтобы TypeScript не ругался при обращении к session.user.id
- */
-
 import NextAuth, { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
   interface Session {
     user: {
-      id: string; // добавляем id
+      id: string;
+      username: string;
+      role: "admin" | "editor" | "guest";  // ← тут
+      isActive: boolean;
     } & DefaultSession["user"];
   }
 
   interface User {
     id: string;
+    username: string;
+    role: "admin" | "editor" | "guest";    // ← и тут
+    isActive: boolean;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    username: string;
+    role: "admin" | "editor" | "guest";    // ← и тут
+    isActive: boolean;
   }
 }

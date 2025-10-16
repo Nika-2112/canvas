@@ -36,24 +36,20 @@ type Props = {
 };
 
 export default function Sidebar({ variant = "standalone" }: Props) {
-    const { data: session } = useSession();
+  const { data: session } = useSession();
 
+  // --- данные пользователя для аватарки и подписи ---
+  const displayName =
+    (session?.user as any)?.username ||
+    session?.user?.email ||
+    (session?.user as any)?.name ||
+    "Пользователь";
 
-  
-    // имя для отображения
-const email = session?.user?.email || "";
-const name =
-  (session?.user as any)?.name // если проброшено из NextAuth
-  || (email ? email.split("@")[0] : ""); // мягкий фолбэк
-const initial = (name || email || "U").trim().charAt(0).toUpperCase();
+  const initial = (displayName || "U").trim().charAt(0).toUpperCase();
 
-
-  
-  
-  const userRole = (session?.user as any)?.role as "admin" | "editor" | "guest" | undefined;
-  const isAdmin = userRole === "admin";
-
-
+  const role = (session?.user as any)?.role as "admin" | "editor" | "guest" | undefined;
+  const isAdmin = role === "admin";
+  const roleLabel = role === "admin" ? "Админ" : role === "editor" ? "Редактор" : role === "guest" ? "Гость" : "";
 
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [projects, setProjects] = useState<ProjectDto[]>([]);
@@ -61,6 +57,8 @@ const initial = (name || email || "U").trim().charAt(0).toUpperCase();
 
   const [pages, setPages] = useState<PageDto[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [sharedPages, setSharedPages] = useState<Array<{ _id: string; title: string }>>([]);
+
 
   // Ctrl/Cmd + K — открыть поиск
   useEffect(() => {
@@ -74,23 +72,48 @@ const initial = (name || email || "U").trim().charAt(0).toUpperCase();
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
+    useEffect(() => {
+      function reload() { loadSharedPages(); }
+      window.addEventListener("shared-pages-changed", reload);
+      return () => window.removeEventListener("shared-pages-changed", reload);
+    }, []);
+    // Загрузка "общих" страниц (те, у кого есть участники)
+  const loadSharedPages = async () => {
+    try {
+      const res = await fetch("/api/pages?shared=1"); // см. пункт 4 — дополним API /api/pages
+      if (!res.ok) {
+        if (res.status === 401) return;
+        return;
+      }
+      const data = await res.json();
+      setSharedPages(Array.isArray(data) ? data : []);
+    } catch {}
+  };
+  useEffect(() => { loadSharedPages(); }, []);
+
 
   // --- Страницы (дерево) ---
 const loadPages = async () => {
   try {
-    const res = await fetch("/api/pages");
+    const res = await fetch("/api/pages/visible", { cache: "no-store" });
     if (!res.ok) {
-      if (res.status === 401) return; // не залогинен — тихо выходим
+      if (res.status === 401) return;
       const data = await res.json().catch(() => null);
       console.error(data?.error || "Ошибка загрузки страниц");
       return;
     }
     const data = await res.json();
-    setPages(data);
+    // ожидаем { personal: PageDto[], shared: PageDto[] }
+    const all = [...(data?.personal || []), ...(data?.shared || [])];
+    setPages(all);
   } catch {
     console.error("Ошибка соединения при загрузке страниц");
   }
 };
+  // грузим дерево страниц при монтировании
+  useEffect(() => {
+    loadPages();
+  }, []);
 
   // Создать корневую страницу
   const createRootPage = async () => {
@@ -126,27 +149,34 @@ const loadPages = async () => {
     }
   };
 
-  // --- Проекты (если используешь) ---
+  // --- Проекты ---
   const loadProjects = async () => {
-  try {
-    setLoadingProjects(true);
-    const res = await fetch("/api/projects");
-    if (!res.ok) {
-      if (res.status === 401) { setLoadingProjects(false); return; }
-      const data = await res.json().catch(() => null);
-      setError(data?.error || "Ошибка загрузки проектов");
+    try {
+      setLoadingProjects(true);
+      const res = await fetch("/api/projects");
+      if (!res.ok) {
+        if (res.status === 401) {
+          setLoadingProjects(false);
+          return;
+        }
+        const data = await res.json().catch(() => null);
+        setError(data?.error || "Ошибка загрузки проектов");
+        setLoadingProjects(false);
+        return;
+      }
+      const data = await res.json();
+      setProjects(data);
+      setError("");
+    } catch {
+      setError("Ошибка соединения с сервером");
+    } finally {
       setLoadingProjects(false);
-      return;
     }
-    const data = await res.json();
-    setProjects(data);
-    setError("");
-  } catch {
-    setError("Ошибка соединения с сервером");
-  } finally {
-    setLoadingProjects(false);
-  }
-};
+  };
+  // грузим проекты при монтировании
+  useEffect(() => {
+    loadProjects();
+  }, []);
 
   const shared = useMemo(
     () => projects.filter((p) => p.scope === "shared" && !p.archived),
@@ -232,10 +262,6 @@ const loadPages = async () => {
   );
 
   return (
-
-
-
-    
     <aside className={containerClass} aria-label="Боковая панель">
       {/* Полотно поиска */}
       <SearchOverlay isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
@@ -243,30 +269,25 @@ const loadPages = async () => {
       {/* Верхняя строка */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs flex-shrink-0">
-            {
-              (session?.user?.username?.[0] ||
-                session?.user?.name?.[0] ||
-                "U"
-              ).toUpperCase()
-            }
+          {/* Аватар с первой буквой */}
+          <div
+            className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs flex-shrink-0"
+            title={displayName}
+          >
+            {initial}
           </div>
 
-          <div className="text-sm flex-shrink-0">
-            <div
-              className="truncate w-[160px] sd-user-email"
-              title={session?.user?.username || session?.user?.name || ""}
-            >
-              {session?.user?.username || session?.user?.name || "Пользователь"}
+          {/* Имя + роль + выход */}
+          <div className="text-sm min-w-0">
+            <div className="truncate w-[160px] sd-user-email" title={displayName}>
+              {displayName}
             </div>
 
-            {/* Роль вместо email */}
-            <div className="text-[12px] text-gray-500">
-              {session?.user?.role === "admin" ? "Админ" : "Редактор"}
-            </div>
+            {/* Роль вместо email (под именем) */}
+            {roleLabel && <div className="text-[12px] text-gray-500">{roleLabel}</div>}
 
             <button
-              className="exit hover:underline"
+              className="exit hover:underline text-[12px]"
               onClick={() => signOut({ callbackUrl: "/login" })}
             >
               Выйти
@@ -285,12 +306,8 @@ const loadPages = async () => {
         </button>
       </div>
 
-
-
       {/* Навигация */}
-
       <nav className="space-y-1">
-
         {/* 👥 Админский пункт — только для admin */}
         {isAdmin && (
           <a
@@ -309,7 +326,6 @@ const loadPages = async () => {
         >
           🔎 Поиск
         </button>
-
         <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/">🏠 Главная</a>
         <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/inbox">📥 Входящие</a>
       </nav>
@@ -320,22 +336,21 @@ const loadPages = async () => {
       <div className="mb-3">
         <div className="flex items-center justify-between px-2 mb-1">
           <div className="text-xs uppercase tracking-wide li-heading">Общее</div>
-          <button className="text-xs text-gray-600 hover:underline" onClick={() => createProject("shared")}>
-            + Проект
-          </button>
+          {/* кнопки создания здесь больше нет */}
         </div>
         <ul className="space-y-1">
-          {loadingProjects && <li className="px-2">Загрузка…</li>}
-          {!loadingProjects && shared.length === 0 && <li className="px-2">Нет общих проектов</li>}
-          {shared.map((p) => (
+          {sharedPages.length === 0 && <li className="px-2">Нет общих страниц</li>}
+          {sharedPages.map((p) => (
             <li key={p._id}>
-              <a className="block px-2 py-1 rounded hover:bg-gray-100" href={`/projects/${p._id}`}>
-                👥 {p.title}
+              <a className="block px-2 py-1 rounded hover:bg-gray-100" href={`/documents/${p._id}`}>
+                👥 {p.title || "Без названия"}
               </a>
             </li>
           ))}
         </ul>
       </div>
+
+
 
       {/* Страницы (дерево) */}
       <div className="mb-3">

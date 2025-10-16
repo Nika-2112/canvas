@@ -18,6 +18,10 @@ import Editor from "@/components/Editor";
 import PageActionsMenu from "@/components/PageActionsMenu";
 import PageProperties, { PropItem } from "@/components/PageProperties";
 
+import PageAssignees from "@/components/PageAssignees";
+
+
+
 type OutputData = { time?: number; blocks: any[]; version?: string };
 
 function jsonEqual(a: unknown, b: unknown) {
@@ -221,6 +225,9 @@ export default function DocumentPage() {
         {saveState === "error" && "Ошибка сохранения"}
       </div>
 
+
+
+      <PageAssignees pageId={String(params.id)} />
       {/* Свойства: любые изменения дергают общий автосейв */}
       <PageProperties
         pageId={String(params.id)}

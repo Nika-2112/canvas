@@ -1,26 +1,19 @@
 /**
- * Страница входа в систему.
- * Реализует форму авторизации (email + пароль) через Credentials Provider (NextAuth).
- * При успешном входе выполняется редирект на главную страницу.
+ * Логин по username + password. Ссылка на регистрацию оставлена как была.
  */
-
 "use client";
 
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState<string>("");
+  const [username, setUsername] = useState<string>("");
   const [password, setPassword] = useState<string>("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Вызов NextAuth Credentials Provider.
-    // Примечание: для корректного UX используется callbackUrl,
-    // по которому пользователь будет возвращён после входа.
     await signIn("credentials", {
-      email: email.trim(),
+      username: username.trim(), // ⚠️ теперь username
       password: password.trim(),
       callbackUrl: "/",
       redirect: true,
@@ -45,12 +38,12 @@ export default function LoginPage() {
           Вход
         </h1>
 
-        <label style={{ display: "block", marginBottom: 6 }}>Email</label>
+        <label style={{ display: "block", marginBottom: 6 }}>Логин</label>
         <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.currentTarget.value)}
-          placeholder="you@example.com"
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.currentTarget.value)}
+          placeholder="username"
           required
           style={{
             width: "100%",

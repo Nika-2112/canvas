@@ -1,17 +1,29 @@
-/**
- * Модель пользователя.
- * Хранит email (уникальный) и хэш пароля.
- * Обеспечиваем безопасность (хранение паролей только в зашифрованном виде).
- */
+// models/User.ts
 import mongoose, { Schema, model, models } from "mongoose";
 
 const UserSchema = new Schema(
   {
-    email: { type: String, required: true, unique: true },
+    username: { type: String, required: true, unique: true, trim: true },
+    email: { type: String, required: false, unique: false, sparse: true, trim: true },
     passwordHash: { type: String, required: true },
+
+    role: {
+      type: String,
+      enum: ["admin", "editor", "guest"],  // guest точно в enum
+      default: "editor",
+    },
+
+    isActive: { type: Boolean, default: true, index: true },
   },
-  { timestamps: true } // createdAt, updatedAt автоматически
+  { timestamps: true }
 );
 
-// Если модель уже создана (при hot reload) — используем её
+// один админ на всю коллекцию (partial unique)
+UserSchema.index({ role: 1 }, { unique: true, partialFilterExpression: { role: "admin" } });
+
+// 👇 ДОБАВЬТЕ ЭТО: в dev удаляем старую модель, чтобы подхватилась новая схема
+if (process.env.NODE_ENV !== "production" && mongoose.models.User) {
+  delete mongoose.models.User;
+}
+
 export const User = models.User || model("User", UserSchema);

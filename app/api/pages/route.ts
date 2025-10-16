@@ -23,8 +23,26 @@ export async function GET(req: Request) {
   const session = await getSession();
   const userId = getSessionUserId(session);
   if (!userId) return NextResponse.json({ error: "Необходима авторизация" }, { status: 401 });
+  
 
-  const url = new URL(req.url);
+// В handler GET /api/pages
+    const url = new URL(req.url);
+    const shared = url.searchParams.get("shared") === "1";
+
+    if (shared) {
+      // вернуть только страницы, у которых есть участники
+      const list = await Page.find({
+        userId, // твой текущий фильтр владельца
+        archived: { $ne: true },
+        deletedAt: null,
+        "members.0": { $exists: true }, // хотя бы один участник
+      })
+        .select("_id title")
+        .lean();
+
+      return NextResponse.json(list.map(p => ({ _id: String(p._id), title: p.title || "" })));
+    }
+
   const rootOnly = url.searchParams.get("root") === "1";
 
   // 🔧 ключевая правка: archived: { $ne: true } (чтобы включить undefined)
