@@ -74,7 +74,10 @@ export async function POST(req: Request) {
       const parent = await Page.findOne({ _id: parentId, userId });
       if (parent) {
         const normalized = normalizeEditorContent(parent.content);
-        normalized.blocks.push({ type: "child_page", data: { refId: String(newPage._id) } });
+        normalized.blocks.push({
+          type: "child_page",
+          data: { refId: String(newPage._id) },
+        });
         parent.content = normalized;
         await parent.save();
       }

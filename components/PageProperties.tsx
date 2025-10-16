@@ -1,4 +1,4 @@
-// /canvas/components/PageProperties.tsx
+// /canvas/components/PageProperties.tsx 
 "use client";
 
 /**
@@ -32,6 +32,15 @@ type Props = {
 
 function uid() {
   return "p_" + Math.random().toString(36).slice(2, 9);
+}
+
+/** Локальная «сегодня» в формате YYYY-MM-DD (без UTC-сдвига) */
+function todayLocal(): string {
+  const t = new Date();
+  const y = t.getFullYear();
+  const m = String(t.getMonth() + 1).padStart(2, "0");
+  const d = String(t.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 /** Дебаунсер для авто-сохранения */
@@ -73,6 +82,115 @@ function StatusPill({ value }: { value: string }) {
   const opt = STATUS_OPTIONS.find((o) => o.label === value) || STATUS_OPTIONS[0];
   return <span className={`inline-flex items-center px-2 py-0.5 text-xs rounded ${opt.className}`}>{opt.label}</span>;
 }
+
+function DateEditor({
+  value,
+  onChange,
+}: {
+  value: { start?: string | null; end?: string | null } | null | undefined;
+  onChange: (v: { start: string | null; end: string | null }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  // локальные драфты — контролируемые поля
+  const [draftStart, setDraftStart] = useState<string>("");
+  const [draftEnd,   setDraftEnd]   = useState<string>("");
+
+  // при открытии попапа — инициализируем драфты из value (без внешних коммитов)
+  useEffect(() => {
+    if (!open) return;
+    setDraftStart(value?.start ?? "");
+    setDraftEnd(value?.end ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const label = (() => {
+    const s = value?.start || null;
+    const e = value?.end || null;
+    if (!s) return "Пусто";
+    const fmtR = (d: string) =>
+      new Date(d + "T00:00:00").toLocaleDateString("ru-RU", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+    return e ? `${fmtR(s)} — ${fmtR(e)}` : fmtR(s);
+  })();
+
+  return (
+    <div className="relative">
+      <button
+        className="text-left w-full px-2 py-1 rounded hover:bg-gray-50"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {label}
+      </button>
+
+      {open && (
+        <div className="absolute z-[220] mt-1 w-72 rounded-lg border bg-white shadow p-3">
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs text-gray-500">Начало</label>
+            <input
+              type="date"
+              className="border rounded px-2 py-1 text-sm"
+              value={draftStart}
+              // начало можно выбирать любым (включая прошлое); не ограничиваем max
+              onChange={(e) => {
+                const nextStart = e.currentTarget.value; // '' или 'YYYY-MM-DD'
+                let nextEnd = draftEnd;
+
+                // если конец выбран и стал раньше старта — подтянем его к старту
+                if (nextEnd && nextStart && nextEnd < nextStart) nextEnd = nextStart;
+
+                setDraftStart(nextStart);
+                setDraftEnd(nextEnd);
+
+                onChange({ start: nextStart || null, end: nextEnd || null });
+              }}
+            />
+
+            <label className="text-xs text-gray-500">Окончание</label>
+            <input
+              type="date"
+              className="border rounded px-2 py-1 text-sm"
+              value={draftEnd}
+              // конец не раньше старта, но может быть раньше «сегодня»
+              min={draftStart || undefined}
+              onChange={(e) => {
+                let nextEnd = e.currentTarget.value; // '' или 'YYYY-MM-DD'
+                if (draftStart && nextEnd && nextEnd < draftStart) nextEnd = draftStart;
+
+                setDraftEnd(nextEnd);
+                onChange({ start: draftStart || null, end: nextEnd || null });
+              }}
+            />
+          </div>
+
+          <div className="mt-3 flex justify-end gap-2">
+            <button className="text-sm px-3 py-1 rounded border" onClick={() => setOpen(false)}>
+              Готово
+            </button>
+            <button
+              className="text-sm px-3 py-1 rounded border"
+              onClick={() => {
+                setDraftStart("");
+                setDraftEnd("");
+                onChange({ start: null, end: null }); // очистка
+              }}
+            >
+              Очистить
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+
+
 
 const PageProperties = React.memo(function PageProperties({ pageId, onLoaded, onChange, onDirty }: Props) {
   const [items, setItems] = useState<PropItem[]>([]);
@@ -192,7 +310,7 @@ const PageProperties = React.memo(function PageProperties({ pageId, onLoaded, on
         ? { id: uid(), name: "Текст", type, value: "" }
         : type === "status"
         ? { id: uid(), name: "Статус", type, value: STATUS_OPTIONS[0].label }
-        : { id: uid(), name: "Дата", type, value: { start: new Date().toISOString().slice(0, 10), end: null } };
+        : { id: uid(), name: "Дата", type, value: { start: todayLocal(), end: null } };
 
     apply([...items, newItem]);
     requestAnimationFrame(() => setEditingValueId(newItem.id));
@@ -297,7 +415,11 @@ const PageProperties = React.memo(function PageProperties({ pageId, onLoaded, on
                     className={"text-left w-full px-2 py-1 rounded whitespace-pre-wrap break-words " + ((p.value ?? "") === "" ? "text-gray-400" : "text-gray-800")}
                     onClick={() => setEditingValueId(p.id)}
                   >
-                    {(p.value ?? "") === "" ? "Пусто" : String(p.value)}
+                    {
+                      (p.value == null || p.value === "")
+                        ? "Пусто"
+                        : (typeof p.value === "string" ? p.value : JSON.stringify(p.value))
+                    }
                   </button>
                 )}
               </>
@@ -329,34 +451,10 @@ const PageProperties = React.memo(function PageProperties({ pageId, onLoaded, on
             )}
 
             {p.type === "date" && (
-              <div className="relative">
-                <button className="text-left w-full px-2 py-1 rounded hover:bg-gray-50" onClick={() => setOpenDate((v) => !v)}>
-                  {fmtDateValue(p.value)}
-                </button>
-                {openDate && (
-                  <div className="absolute z-[220] mt-1 w-72 rounded-lg border bg-white shadow p-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <label className="text-xs text-gray-500">Начало</label>
-                      <input
-                        type="date" className="border rounded px-2 py-1 text-sm"
-                        defaultValue={p.value?.start ?? new Date().toISOString().slice(0, 10)}
-                        onChange={(e) => setValue(p.id, { start: e.currentTarget.value, end: p.value?.end ?? null })}
-                      />
-                      <label className="text-xs text-gray-500">Окончание</label>
-                      <input
-                        type="date" className="border rounded px-2 py-1 text-sm"
-                        value={p.value?.end ?? ""} onChange={(e) => setValue(p.id, { start: p.value?.start ?? new Date().toISOString().slice(0, 10), end: e.currentTarget.value || null })}
-                      />
-                    </div>
-                    <div className="mt-3 flex justify-end gap-2">
-                      <button className="text-sm px-3 py-1 rounded border" onClick={() => setOpenDate(false)}>Готово</button>
-                      <button className="text-sm px-3 py-1 rounded border" onClick={() => { setValue(p.id, { start: null, end: null }); setOpenDate(false); }}>
-                        Очистить
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <DateEditor
+                value={p.value}
+                onChange={(next) => setValue(p.id, next)}
+              />
             )}
           </div>
         </div>

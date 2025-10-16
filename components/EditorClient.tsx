@@ -40,25 +40,19 @@ type Props = { initialData: OutputData; onChange: (data: OutputData) => void };
  *    Поэтому здесь НЕТ статического геттера toolbox — Editor.js не будет показывать
  *    этот инструмент в плюс-меню. Блок появляется только программно.
  */
+// components/EditorClient.tsx  — фрагмент
+
 class ChildPageViewer {
-  static get isReadOnlySupported() {
-    return true;
-  }
-
+  static get isReadOnlySupported() { return true; }
   private data: { refId?: string };
-
-  constructor({ data }: { data: any }) {
-    this.data = data || {};
-  }
+  constructor({ data }: { data: any }) { this.data = data || {}; }
 
   render() {
-    // Корневой элемент — <a>, ведущая на страницу-подстраницу.
     const link = document.createElement("a");
     link.href = this.data?.refId ? `/documents/${this.data.refId}` : "#";
     link.className =
       "block rounded-md border border-neutral-200 px-12 py-2 hover:bg-neutral-50 relative";
 
-    // Иконка слева (визуально как Notion).
     const icon = document.createElement("span");
     icon.textContent = "📄";
     icon.style.position = "absolute";
@@ -66,33 +60,28 @@ class ChildPageViewer {
     icon.style.top = "50%";
     icon.style.transform = "translateY(-50%)";
 
-    // Заголовок подстраницы (подтянем по API).
     const title = document.createElement("span");
     title.textContent = "Подстраница";
     title.className = "text-sm font-medium";
 
-    // Подтягиваем актуальный заголовок по refId
     if (this.data?.refId) {
       fetch(`/api/pages/${this.data.refId}`)
-        .then((r) => r.json())
-        .then((p) => {
-          if (p?.title) title.textContent = p.title;
-        })
-        .catch(() => {
-          /* без шумных ошибок в UI */
-        });
+        .then(r => r.json())
+        .then(p => { if (p?.title) title.textContent = p.title; })
+        .catch(() => {});
     }
 
-    link.appendChild(icon);
-    link.appendChild(title);
+    link.append(icon, title);
     return link;
   }
 
-  save() {
-    // Сохраняем исходные data блока без изменений.
-    return this.data;
-  }
+  save() { return this.data; } // без изменений
 }
+
+// регистрация в EditorJS:
+
+
+
 
 export default function EditorClient({ initialData, onChange }: Props) {
   const editorRef = useRef<any>(null);
@@ -165,10 +154,7 @@ export default function EditorClient({ initialData, onChange }: Props) {
 
           // Вьювер «подстраница» — отображает блок { type: "child_page", data: { refId } }.
           // Без toolbox => не виден в плюс-меню, но умеет отрисовываться и сохраняться.
-          child_page: {
-            class: ChildPageViewer as any,
-            inlineToolbar: false,
-          },
+          child_page: { class: ChildPageViewer as any, inlineToolbar: false },
         },
 
         /**
