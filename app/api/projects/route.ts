@@ -1,4 +1,3 @@
-
 /**
  * API /api/projects
  *
@@ -22,16 +21,24 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Необходима авторизация" }, { status: 401 });
   }
 
+  const userId = session.user.id; // 🔧 добавили переменную
   const { searchParams } = new URL(req.url);
   const scope = searchParams.get("scope");      // 'personal' | 'shared' | null
   const archived = searchParams.get("archived"); // 'true' | 'false' | null
 
-  const filter: any = { userId: session.user.id };
+  const filter: any = { userId: userId };
   if (scope) filter.scope = scope;
   if (archived === "true") filter.archived = true;
   if (archived === "false") filter.archived = false;
 
-  const projects = await Project.find(filter).sort({ createdAt: 1 });
+  // 🔧 заменили me → userId
+  const projects = await Project.find({
+    $or: [
+      { userId: userId },
+      { "members.userId": userId } // участник тоже видит проект
+    ]
+  }).lean();
+
   return NextResponse.json(projects);
 }
 

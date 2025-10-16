@@ -30,6 +30,8 @@ const PageMemberSchema = new Schema(
 const PageSchema = new Schema(
   {
     userId:    { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    projectId: { type: Schema.Types.ObjectId, ref: "Project", required: false, index: true },
+
     title:     { type: String, required: true, trim: true, default: "Новая страница" },
     content:   {
       type: Schema.Types.Mixed,
@@ -47,6 +49,9 @@ const PageSchema = new Schema(
 
     // УЧАСТНИКИ СТРАНИЦЫ (добавили сейчас)
     members:   { type: [PageMemberSchema], default: [] },
+
+ 
+
 
     // Свойства
     properties: { type: [PropertySchema], required: false, default: () => [] },
