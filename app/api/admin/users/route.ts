@@ -30,7 +30,11 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const username: string = (body?.username ?? "").trim();
   const password: string = (body?.password ?? "").trim();
-  const email: string | null = (body?.email ?? null) || null;
+// НЕ пишем null в БД — если email пустой, вообще не передаём поле (undefined)
+    let email: string | undefined =
+      typeof body?.email === "string" && body.email.trim() !== "" ? body.email.trim() : undefined;
+
+
   const role: UiRole = ALLOWED_UI_ROLES.includes(body?.role) ? body.role : "editor";
 
   if (!username || !password) {
@@ -44,6 +48,9 @@ export async function POST(req: Request) {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
+
+
+  console.log("DEBUG new user payload:", { username, email, role });
 
   // ⚠️ На сервере создаём ТОЛЬКО editor/guest (admin — никогда)
   const u = await User.create({

@@ -45,10 +45,18 @@ const PageSchema = new Schema(
     deletedAt: { type: Date, default: null, index: true },
 
     // ИСПОЛНИТЕЛИ (у вас уже были)
-    assignees: [{ type: Schema.Types.ObjectId, ref: "User", index: true }],
+    assignees: [{ type: Schema.Types.ObjectId, ref: "User" }],
+
 
     // УЧАСТНИКИ СТРАНИЦЫ (добавили сейчас)
-    members:   { type: [PageMemberSchema], default: [] },
+    // в объект PageSchema (рядом с assignees)
+    members: [{
+      userId: { type: Schema.Types.ObjectId, ref: "User", required: true }, // index: true УДАЛЁН
+      role:   { type: String, enum: ["editor", "guest"], required: true },
+    }],
+
+
+
 
  
 
@@ -61,6 +69,7 @@ const PageSchema = new Schema(
 
 // Индекс на участников, чтобы быстро искать
 PageSchema.index({ "members.userId": 1 });
+
 
 export type Page = InferSchemaType<typeof PageSchema>;
 export const Page = models.Page || mongoose.model("Page", PageSchema);

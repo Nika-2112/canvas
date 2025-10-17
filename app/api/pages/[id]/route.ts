@@ -92,16 +92,29 @@ async function loadOwned(pageId: string) {
   await connectDB();
   const session = await getSession();
   const userId = getSessionUserId(session);
-  if (!userId) return { error: NextResponse.json({ error: "Необходима авторизация" }, { status: 401 }) };
+  const userRole = (session?.user as any)?.role || "guest";
+
+  if (!userId) {
+    return { error: NextResponse.json({ error: "Необходима авторизация" }, { status: 401 }) };
+  }
 
   const page = await Page.findById(pageId);
-  if (!page) return { error: NextResponse.json({ error: "Страница не найдена" }, { status: 404 }) };
-  if (String(page.userId) !== String(userId)) {
-    return { error: NextResponse.json({ error: "Доступ запрещён" }, { status: 403 }) };
+  if (!page) {
+    return { error: NextResponse.json({ error: "Страница не найдена" }, { status: 404 }) };
   }
-  return { page, userId };
-}
 
+  const isOwner = String(page.userId) === String(userId);
+  const isMember = Array.isArray((page as any).members)
+    ? (page as any).members.some((m: any) => String(m.userId) === String(userId))
+    : false;
+
+  // 🔧 Разрешаем доступ:
+  if (isOwner || userRole === "admin" || isMember) {
+    return { page, userId };
+  }
+
+  return { error: NextResponse.json({ error: "Доступ запрещён" }, { status: 403 }) };
+}
 /** Удалить из родителя «битую» ссылку на ребёнка */
 async function removeChildLinkFromParent(parentId: string, childId: string, ownerId: string) {
   const parent = await Page.findOne({ _id: parentId, userId: ownerId });

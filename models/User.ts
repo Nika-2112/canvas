@@ -4,7 +4,7 @@ import mongoose, { Schema, model, models } from "mongoose";
 const UserSchema = new Schema(
   {
     username: { type: String, required: true, unique: true, trim: true },
-    email: { type: String, required: false, unique: false, sparse: true, trim: true },
+    email: { type: String, trim: true },
     passwordHash: { type: String, required: true },
 
     role: {
@@ -25,5 +25,12 @@ UserSchema.index({ role: 1 }, { unique: true, partialFilterExpression: { role: "
 if (process.env.NODE_ENV !== "production" && mongoose.models.User) {
   delete mongoose.models.User;
 }
+// уникальность email только если email действительно указан
+  UserSchema.index(
+    { email: 1 },
+    { unique: true, partialFilterExpression: { email: { $type: "string" } } }
+  );
+
+
 
 export const User = models.User || model("User", UserSchema);
