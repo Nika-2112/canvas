@@ -2,13 +2,14 @@
 "use client";
 
 /**
- * Главная: список страниц + вкладка календаря
+ * Главная: список страниц + вкладки (List / Calendar / Table)
  */
 
 import { useEffect, useMemo, useState } from "react";
 import PageActionsMenu from "@/components/PageActionsMenu";
 import { useSearchParams, useRouter } from "next/navigation";
 import CalendarView from "@/components/CalendarView"; // <-- default импорт
+import TableView from "@/components/TableView";
 
 type PageDto = {
   _id: string;
@@ -81,9 +82,9 @@ export default function HomePage() {
 
   const params = useSearchParams();
   const router = useRouter();
-  const view = (params.get("view") || "list").toLowerCase();
+  const view = (params.get("view") || "list").toLowerCase() as "list" | "calendar" | "table";
 
-  const setView = (v: "list" | "calendar") => {
+  const setView = (v: "list" | "calendar" | "table") => {
     const qs = new URLSearchParams(params as any);
     qs.set("view", v);
     router.replace(`/?${qs.toString()}`);
@@ -133,7 +134,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-4 flex items-end justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-5xl font-bold m-0">Страницы</h1>
@@ -144,26 +145,30 @@ export default function HomePage() {
 
         <div className="flex gap-2">
           <button
-            className={`px-3 py-1 rounded-xl border ${
-              view === "list" ? "bg-muted" : ""
-            }`}
+            className={`px-3 py-1 rounded-xl border ${view === "list" ? "bg-muted" : ""}`}
             onClick={() => setView("list")}
           >
             List
           </button>
           <button
-            className={`px-3 py-1 rounded-xl border ${
-              view === "calendar" ? "bg-muted" : ""
-            }`}
+            className={`px-3 py-1 rounded-xl border ${view === "calendar" ? "bg-muted" : ""}`}
             onClick={() => setView("calendar")}
           >
             Calendar
+          </button>
+          <button
+            className={`px-3 py-1 rounded-xl border ${view === "table" ? "bg-muted" : ""}`}
+            onClick={() => setView("table")}
+          >
+            Table
           </button>
         </div>
       </div>
 
       {view === "calendar" ? (
         <CalendarView />
+      ) : view === "table" ? (
+        <TableView />
       ) : (
         <>
           {loading && <div className="text-gray-500">Загрузка…</div>}
