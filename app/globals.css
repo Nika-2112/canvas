@@ -203,6 +203,7 @@ body {
   height: 1.5em !important;
   max-height: 3.5em !important;       /* и это — как в твоей версии */
   overflow: hidden !important;
+  
 }
 
 /* Текст внутри — inline + ellipsis */
@@ -340,7 +341,7 @@ aside::-webkit-scrollbar-track { background: #161616; }
   z-index: 1960;
   background: #fff;
 
-  /* лёгкая рамка/тень (как у тебя) */
+  /* лёгкая рамка/тень  */
   border: 1px solid rgba(95, 94, 91, 0.20);
   box-shadow: 3px 3px 3px rgba(95, 94, 91, 0.20);
 
@@ -446,21 +447,50 @@ aside::-webkit-scrollbar-track { background: #161616; }
 
 
 
+.sv .absolute { 
+  border: 1px solid rgba(95, 94, 91, 0.20);
+  box-shadow: 3px 3px 3px rgba(95, 94, 91, 0.20);
+
+}
+
+.prop{ 
+  border: 1px solid rgba(95, 94, 91, 0.20);
+  box-shadow: 3px 3px 3px rgba(95, 94, 91, 0.20);
+ 
+  
+
+}
+
+.trash{ 
+  border: 1px solid rgba(95, 94, 91, 0.20);
+  box-shadow: 3px 3px 3px rgba(95, 94, 91, 0.20);
+  border-bottom: 1px solid rgba(95, 94, 91, 0.20);
+  border-bottom-width: 1px;
+}
+
+.trash-s{ 
+  
+  border-bottom: 1px solid rgba(95, 94, 91, 0.20);
+
+}
+
+
+.trash-s{ 
+  
+  border: 1px solid rgba(95, 94, 91, 0.20);
+
+}
+ .divide-y {
+  
+ }
+*, ::after, ::before, ::backdrop, ::file-selector-button{
+  border: none;
+}
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-/* ----- Свойства: жёлоб/кнопки (у тебя уже есть) ----- */
+/* ----- Свойства: ----- */
 .pp-row { position: relative; }
 .pp-gutter {
   position: absolute;
@@ -512,3 +542,11 @@ aside::-webkit-scrollbar-track { background: #161616; }
 .menu-item.danger { color:#b91c1c; }
 .menu-item.danger:hover { background:#fef2f2; }
 .menu-sep { height:1px; background:#e5e7eb; margin:6px 0; }
+
+
+
+.btn-add-usr{
+  border: 1px solid rgba(95, 94, 91, 0.20);
+  background-color: none;
+  border-radius: 8px;
+}

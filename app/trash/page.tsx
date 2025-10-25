@@ -158,9 +158,9 @@ export default function TrashPage() {
   return (
     <div className="min-h-screen bg-white p-6">
       {/* центрированная панель — как «окно» */}
-      <div className="mx-auto w-full max-w-3xl rounded-2xl border bg-white shadow-xl">
+      <div className="trash mx-auto w-full max-w-3xl rounded-2xl  bg-white shadow-xl">
         {/* хедер */}
-        <div className="flex items-center gap-3 border-b px-4 py-3">
+        <div className="trash-b trashflex items-center gap-3  px-4 py-3">
           <div className="text-lg font-semibold">Корзина</div>
           <div className="ml-auto text-xs text-gray-500">
             Храним {retention} дней
@@ -168,12 +168,12 @@ export default function TrashPage() {
         </div>
 
         {/* поиск */}
-        <div className="px-4 py-3 border-b">
+        <div className="trash-b px-4 py-3 ">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search pages in Trash…"
-            className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-gray-400"
+            placeholder="Поиск"
+            className="trash-s w-full rounded-md  px-3 py-2 text-sm outline-none "
           />
         </div>
 
@@ -208,7 +208,7 @@ export default function TrashPage() {
                     aria-label="Восстановить"
                     onClick={() => restore(i._id)}
                   >
-                    ↩
+                    ⮌
                   </button>
                   <button
                     className="rounded p-2 hover:bg-red-50 text-red-700"
@@ -225,7 +225,7 @@ export default function TrashPage() {
         </div>
 
         {/* футер */}
-        <div className="flex items-center justify-between border-t px-4 py-2 text-xs text-gray-500">
+        <div className="flex items-center justify-between trash-b px-4 py-2 text-xs text-gray-500">
           <div>Всего: {filtered.length}</div>
           <div>Esc — закрыть (Alt+← — назад)</div>
         </div>

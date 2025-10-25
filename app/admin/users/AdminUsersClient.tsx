@@ -113,12 +113,12 @@ export default function AdminUsersClient() {
     <div className="space-y-4">
       <div className="flex gap-2">
         <button
-          className="px-3 py-1.5 rounded border bg-black text-white"
+          className="btn-add-usr px-3 py-1.5 rounded border "
           onClick={() => setOpenNew(true)}
         >
           Новый пользователь
         </button>
-        <button className="px-3 py-1.5 rounded border" onClick={load}>Обновить</button>
+        <button className="btn-add-usr px-3 py-1.5 rounded border" onClick={load}>Обновить</button>
       </div>
 
       {err && <div className="text-red-600 text-sm">{err}</div>}

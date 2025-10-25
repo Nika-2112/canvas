@@ -383,7 +383,7 @@ const PageProperties = React.memo(function PageProperties({ pageId, onLoaded, on
             {/* Имя свойства */}
             {editingNameId === p.id ? (
               <input
-                className="w-56 rounded-md border px-2 py-1 text-sm focus:border-gray-400 outline-none"
+                className="w-56 rounded-md  px-2 py-1 text-sm  outline-none"
                 defaultValue={p.name}
                 autoFocus
                 onBlur={(e) => { rename(p.id, e.currentTarget.value.trim() || "Без названия"); setEditingNameId(null); }}
@@ -393,7 +393,7 @@ const PageProperties = React.memo(function PageProperties({ pageId, onLoaded, on
                 }}
               />
             ) : (
-              <button className="text-[14px] text-gray-700 text-left hover:underline truncate" onClick={() => setEditingNameId(p.id)}>
+              <button className=" text-gray-700 text-left  truncate" onClick={() => setEditingNameId(p.id)}>
                 {p.name || "Без названия"}
               </button>
             )}
@@ -403,7 +403,7 @@ const PageProperties = React.memo(function PageProperties({ pageId, onLoaded, on
               <>
                 {editingValueId === p.id ? (
                   <textarea
-                    className="w-full rounded-md border px-2 py-1 text-sm focus:border-gray-400 outline-none resize-none overflow-hidden whitespace-pre-wrap break-words"
+                    className="w-full rounded-md  px-2 py-1 text-sm  outline-none resize-none overflow-hidden whitespace-pre-wrap break-words"
                     defaultValue={p.value ?? ""} rows={1} autoFocus ref={(el) => autoresize(el)}
                     onInput={(e) => autoresize(e.currentTarget)}
                     onBlur={(e) => { setValue(p.id, e.currentTarget.value); setEditingValueId(null); }}
@@ -427,7 +427,7 @@ const PageProperties = React.memo(function PageProperties({ pageId, onLoaded, on
 
             {p.type === "status" && (
               <div className="relative">
-                <button className="inline-flex items-center gap-2 px-2 py-1 border rounded hover:bg-gray-50" onClick={() => setOpenStatus((v) => !v)}>
+                <button className="inline-flex items-center gap-2 px-2 py-1 " onClick={() => setOpenStatus((v) => !v)}>
                   <StatusPill value={p.value} />
                 </button>
                 {openStatus && (
@@ -488,8 +488,8 @@ const PageProperties = React.memo(function PageProperties({ pageId, onLoaded, on
   function AddPalette() {
     if (!paletteAt) return null;
     return (
-      <div ref={paletteRef} className="fixed z-[220] w-[300px] rounded-lg border bg-white shadow" style={{ left: paletteAt.x, top: paletteAt.y }}>
-        <div className="px-3 py-2 border-b text-xs text-gray-500">Добавить свойство</div>
+      <div ref={paletteRef} className="prop fixed  w-[300px] rounded-lg border bg-white shadow" style={{ left: paletteAt.x, top: paletteAt.y }}>
+        
         <div className="p-2 space-y-1">
           {palette.map((opt) => (
             <button

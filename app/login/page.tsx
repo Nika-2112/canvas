@@ -87,12 +87,6 @@ export default function LoginPage() {
           Войти
         </button>
 
-        <div style={{ fontSize: 14 }}>
-          Нет аккаунта?{" "}
-          <a href="/register" style={{ textDecoration: "underline" }}>
-            Зарегистрироваться
-          </a>
-        </div>
       </form>
     </div>
   );

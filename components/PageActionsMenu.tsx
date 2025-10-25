@@ -88,7 +88,7 @@ export default function PageActionsMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1 w-56 rounded-md border bg-white shadow-lg z-50">
+        <div className="sv absolute right-0 mt-1 w-56 rounded-md  bg-white shadow-lg z-50">
           <button
             className="w-full text-left px-3 py-2 hover:bg-gray-50 disabled:opacity-50"
             onClick={() => start(handleCreateSubpage)}
@@ -117,7 +117,7 @@ export default function PageActionsMenu({
             {archived ? "Разархивировать" : "Архивировать"}
           </button>
 
-          <div className="my-1 border-t" />
+          
 
           <button
             className="w-full text-left px-3 py-2 hover:bg-red-50 text-red-700"

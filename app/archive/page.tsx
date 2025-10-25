@@ -99,7 +99,7 @@ export default function ArchivePage() {
             onClick={() => unarchive(node._id)}
             title="Вернуть из архива (ветка)"
           >
-            ↩
+            ⮌
           </button>
           <a
             className="text-xs px-2 py-1 rounded border hover:bg-gray-50"

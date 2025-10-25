@@ -207,7 +207,7 @@ export default function Sidebar({ variant = "standalone" }: Props) {
           🔎 Поиск (Ctrl/Cmd + K)
         </button>
         <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/">🏠 Главная</a>
-        <a className="block px-2 py-1 rounded hover:bg-gray-100" href="/inbox">📥 Входящие</a>
+        
       </nav>
 
       <div className="my-3 border-t" />

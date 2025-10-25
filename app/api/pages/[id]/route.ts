@@ -9,6 +9,8 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { Page } from "@/models/Page";
+import { Project } from "@/models/Project";
+
 import { getSession } from "@/lib/auth";
 import { getSessionUserId } from "@/lib/session-user";
 
@@ -87,7 +89,26 @@ function validateProperties(input: any): { ok: boolean; value?: any[]; error?: s
 }
 
 
+/** Найти ближайший projectId у предков (или у самой страницы) */
+async function resolveInheritedProjectId(pageId: string): Promise<string | null> {
+  let current: any = pageId;
+  const seen = new Set<string>();
+  while (current && !seen.has(String(current))) {
+    seen.add(String(current));
+    const p = await Page.findById(current)
+      .select("_id parentId projectId")
+      .lean<{ _id: any; parentId?: any | null; projectId?: any | null } | null>();
+    if (!p) break;
+    if (p.projectId) return String(p.projectId);
+    current = p.parentId || null;
+  }
+  return null;
+}
+
+
+
 /** Загрузка страницы с проверкой владельца */
+/** Загрузка страницы с проверкой доступа (owner/member/admin ИЛИ участник проекта) */
 async function loadOwned(pageId: string) {
   await connectDB();
   const session = await getSession();
@@ -99,7 +120,7 @@ async function loadOwned(pageId: string) {
   }
 
   const page = await Page.findById(pageId);
-  if (!page) {
+  if (!page || (page as any).archived || (page as any).deletedAt) {
     return { error: NextResponse.json({ error: "Страница не найдена" }, { status: 404 }) };
   }
 
@@ -108,16 +129,35 @@ async function loadOwned(pageId: string) {
     ? (page as any).members.some((m: any) => String(m.userId) === String(userId))
     : false;
 
-  // 🔧 Разрешаем доступ:
+  // 1) Классический доступ
   if (isOwner || userRole === "admin" || isMember) {
     return { page, userId };
   }
 
+  // 2) Доступ как участник проекта (ищем ближайший projectId у предков)
+  const effectiveProjectId = (page as any).projectId
+    ? String((page as any).projectId)
+    : await resolveInheritedProjectId(pageId);
+
+  if (effectiveProjectId) {
+    const proj = await Project.findOne({
+      _id: effectiveProjectId,
+      $or: [{ userId }, { "members.userId": userId }],
+    })
+      .select("_id")
+      .lean();
+    if (proj) {
+      // доступ есть
+      return { page, userId };
+    }
+  }
+
   return { error: NextResponse.json({ error: "Доступ запрещён" }, { status: 403 }) };
 }
+
 /** Удалить из родителя «битую» ссылку на ребёнка */
 async function removeChildLinkFromParent(parentId: string, childId: string, ownerId: string) {
-  const parent = await Page.findOne({ _id: parentId, userId: ownerId });
+  const parent = await Page.findOne({ _id: parentId });
   if (!parent) return;
   const content = normalizeEditorContent(parent.content);
 
@@ -135,29 +175,21 @@ async function removeChildLinkFromParent(parentId: string, childId: string, owne
 async function syncChildLinks(parentId: string, ownerId: string) {
   const parent = await Page.findOne({ _id: parentId, userId: ownerId });
   if (!parent) return;
-
   const content = normalizeEditorContent(parent.content);
-
-  // Только актуальные дети: не архив и не удалённые
   const children = await Page.find({
     parentId,
-    userId: ownerId,
     archived: { $ne: true },
     deletedAt: null,
   })
     .select("_id")
     .lean();
-
   const childSet = new Set(children.map((c: any) => String(c._id)));
   const origBlocks: any[] = Array.isArray(content.blocks) ? (content.blocks as any[]) : [];
 
-  // Убираем ссылки на отсутствующих
   const filtered: any[] = origBlocks.filter((b: any) => {
     if (b?.type !== "child_page") return true;
     return childSet.has(String(b?.data?.refId || ""));
   });
-
-  // Добавляем недостающие
   const existing = new Set(
     filtered.filter((b: any) => b?.type === "child_page").map((b: any) => String(b.data.refId))
   );
@@ -165,11 +197,9 @@ async function syncChildLinks(parentId: string, ownerId: string) {
     const id = String((c as any)._id);
     if (!existing.has(id)) filtered.push({ type: "child_page", data: { refId: id } });
   }
-
   const changed =
     filtered.length !== origBlocks.length ||
     filtered.some((b: any, i: number) => b !== origBlocks[i]);
-
   if (changed) {
     parent.content = { ...content, blocks: filtered };
     await parent.save();
@@ -182,7 +212,7 @@ async function collectDescendants(rootId: string, ownerId: string): Promise<stri
   const out = new Set<string>();
   while (queue.length) {
     const cur = queue.shift() as string;
-    const kids = await Page.find({ parentId: cur, userId: ownerId }).select("_id").lean();
+    const kids = await Page.find({ parentId: cur }).select("_id").lean();
     for (const k of kids) {
       const id = String((k as any)._id);
       if (!out.has(id)) {
