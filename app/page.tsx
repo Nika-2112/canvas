@@ -10,6 +10,7 @@ import PageActionsMenu from "@/components/PageActionsMenu";
 import { useSearchParams, useRouter } from "next/navigation";
 import CalendarView from "@/components/CalendarView"; // <-- default импорт
 import TableView from "@/components/TableView";
+import ListView from "@/components/ListView";
 
 type PageDto = {
   _id: string;
@@ -137,10 +138,11 @@ export default function HomePage() {
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-4 flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-5xl font-bold m-0">Страницы</h1>
+          <h1 className="text-5xl font-bold m-0">Мероприятия</h1>
           <p className="text-sm text-gray-500 mt-2">
-            Создавайте страницы и подстраницы через левое меню.
+            Создавайте мероприятия через левое меню. 
           </p>
+          <br></br><br></br>
         </div>
 
         <div className="flex gap-2">
@@ -170,24 +172,7 @@ export default function HomePage() {
       ) : view === "table" ? (
         <TableView />
       ) : (
-        <>
-          {loading && <div className="text-gray-500">Загрузка…</div>}
-          {error && <div className="text-red-600">{error}</div>}
-
-          {!loading && !error && tree.length === 0 && (
-            <div className="text-gray-600">
-              Пока нет страниц. Создайте первую через боковую панель.
-            </div>
-          )}
-
-          {!loading && !error && tree.length > 0 && (
-            <ul className="space-y-1">
-              {tree.map((n) => (
-                <NodeView key={n._id} node={n} level={0} />
-              ))}
-            </ul>
-          )}
-        </>
+        <ListView />
       )}
     </div>
   );

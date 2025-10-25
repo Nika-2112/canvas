@@ -246,7 +246,7 @@ export default function CalendarView() {
                 return (
                   <div
                     key={i}
-                    className={`relative border rounded-xl p-2 min-h-[120px] ${isOtherMonth ? "opacity-40" : ""} ${isToday ? "ring-2 ring-blue-500 ring-offset-2" : ""}`}
+                    className={`relative border rounded-xl  p-2 min-h-[120px] ${isOtherMonth ? "opacity-40" : ""} ${isToday ? "bg-[#e2c5c1] border-[#e2c5c1]  ring-0" : ""}`}
                   >
                     <div className="text-xs mb-1 font-medium">{d.getDate()}</div>
                   </div>
