@@ -29,17 +29,20 @@ export async function GET(req: Request) {
     const to = parseISO(searchParams.get("to"));
     const rootOnly = searchParams.get("rootOnly") === "1";
 
-    // 1) Достаём из массива properties элемент типа "date"
-    // 2) Превращаем строки "YYYY-MM-DD" в Date
     const pipeline: any[] = [
-      // живые страницы
+      // Живые страницы (не удалённые/не архивные)
       {
         $match: {
           deletedAt: { $in: [null, undefined] },
-          archivedAt: { $in: [null, undefined] },
+          // поддержим обе схемы архивации
+          $and: [
+            { $or: [{ archivedAt: { $in: [null, undefined] } }, { archivedAt: { $exists: false } }] },
+            { $or: [{ archived: { $ne: true } }, { archived: { $exists: false } }] },
+          ],
         },
       },
-      // вытащим первый объект со свойством type == "date"
+
+      // 1) Вытащим свойства типа date / status / tags
       {
         $addFields: {
           dateProp: {
@@ -47,13 +50,32 @@ export async function GET(req: Request) {
               $filter: {
                 input: "$properties",
                 as: "p",
-                cond: { $eq: ["$$p.type", "date"] }, // важное место
+                cond: { $eq: ["$$p.type", "date"] },
+              },
+            },
+          },
+          statusProp: {
+            $first: {
+              $filter: {
+                input: "$properties",
+                as: "p",
+                cond: { $eq: ["$$p.type", "status"] },
+              },
+            },
+          },
+          tagsProp: {
+            $first: {
+              $filter: {
+                input: "$properties",
+                as: "p",
+                cond: { $eq: ["$$p.type", "tags"] },
               },
             },
           },
         },
       },
-      // строки -> даты
+
+      // 2) Строки -> даты (YYYY-MM-DD)
       {
         $addFields: {
           dateStart: {
@@ -65,25 +87,59 @@ export async function GET(req: Request) {
           },
           dateEnd: {
             $dateFromString: {
-              dateString: {
-                $ifNull: ["$dateProp.value.end", "$dateProp.value.start"],
-              },
+              dateString: { $ifNull: ["$dateProp.value.end", "$dateProp.value.start"] },
               onNull: null,
               onError: null,
             },
           },
         },
       },
-      // оставим только те, у кого дата действительно есть
+
+      // 3) Универсально нормализуем статус в строковый id
+      {
+        $addFields: {
+          statusId: {
+            $let: {
+              vars: { v: "$statusProp.value" },
+              in: {
+                $switch: {
+                  branches: [
+                    // value — строка id
+                    { case: { $eq: [{ $type: "$$v" }, "string"] }, then: "$$v" },
+                    // value — объект { id } | { value }
+                    {
+                      case: { $eq: [{ $type: "$$v" }, "object"] },
+                      then: { $ifNull: ["$$v.id", { $ifNull: ["$$v.value", null] }] },
+                    },
+                  ],
+                  default: null,
+                },
+              },
+            },
+          },
+        },
+      },
+
+      // 4) Нормализуем теги (если есть свойство типа tags)
+      {
+        $addFields: {
+          tagsArr: {
+            $cond: [
+              { $and: [{ $ne: ["$tagsProp", null] }, { $eq: [{ $type: "$tagsProp.value" }, "array"] }] },
+              "$tagsProp.value",
+              [],
+            ],
+          },
+        },
+      },
+
+      // Оставим только те, у кого дата действительно есть
       { $match: { dateStart: { $ne: null } } },
     ];
 
-    // Фильтр по диапазону (пересечение интервалов):
-    // (start <= to) && (end >= from)
+    // Фильтр по диапазону (пересечение интервалов): (start <= to) && (end >= from)
     if (from && to) {
-      pipeline.push({
-        $match: { dateStart: { $lte: to }, dateEnd: { $gte: from } },
-      });
+      pipeline.push({ $match: { dateStart: { $lte: to }, dateEnd: { $gte: from } } });
     } else if (from) {
       pipeline.push({ $match: { dateEnd: { $gte: from } } });
     } else if (to) {
@@ -91,9 +147,7 @@ export async function GET(req: Request) {
     }
 
     if (rootOnly) {
-      pipeline.push({
-        $match: { parentId: { $in: [null, undefined] } },
-      });
+      pipeline.push({ $match: { parentId: { $in: [null, undefined] } } });
     }
 
     // Формируем ответ
@@ -103,13 +157,9 @@ export async function GET(req: Request) {
           _id: 1,
           title: 1,
           parentId: 1,
-          date: {
-            start: "$dateStart",
-            end: "$dateEnd",
-            allDay: true, // у тебя allDay не хранится — для календаря так ок
-          },
-          status: "$properties.status",
-          tags: "$properties.tags",
+          date: { start: "$dateStart", end: "$dateEnd", allDay: true },
+          status: "$statusId",
+          tags: "$tagsArr",
         },
       },
       { $sort: { "date.start": 1, title: 1 } }
